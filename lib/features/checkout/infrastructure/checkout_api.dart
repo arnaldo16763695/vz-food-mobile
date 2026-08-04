@@ -10,6 +10,43 @@ class CheckoutApi {
 
   final Dio _dio;
 
+  Future<CheckoutPaymentSettings> fetchPaymentSettings({
+    required String tenantSlug,
+  }) async {
+    final response = await _dio.get<Object?>(
+      '/api/mobile/storefront/$tenantSlug/payment-settings',
+    );
+
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      final settings = data['settings'];
+      if (settings is Map<String, dynamic>) {
+        return CheckoutPaymentSettings.fromJson(settings);
+      }
+      if (settings is Map) {
+        return CheckoutPaymentSettings.fromJson(
+          Map<String, dynamic>.from(settings),
+        );
+      }
+    }
+
+    if (data is Map) {
+      final settings = data['settings'];
+      if (settings is Map) {
+        return CheckoutPaymentSettings.fromJson(
+          Map<String, dynamic>.from(settings),
+        );
+      }
+    }
+
+    throw DioException(
+      requestOptions: response.requestOptions,
+      response: response,
+      type: DioExceptionType.badResponse,
+      message: 'Expected payment settings endpoint to return a settings object.',
+    );
+  }
+
   Future<CheckoutResult> submit({
     required String accessToken,
     required CheckoutSubmission submission,

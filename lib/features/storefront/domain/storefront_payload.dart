@@ -225,6 +225,7 @@ class StorefrontModifierGroup {
     required this.id,
     required this.name,
     required this.selectionType,
+    required this.modifierKind,
     required this.minSelect,
     required this.maxSelect,
     required this.options,
@@ -233,6 +234,7 @@ class StorefrontModifierGroup {
   final String id;
   final String name;
   final String selectionType;
+  final String modifierKind;
   final int minSelect;
   final int maxSelect;
   final List<StorefrontModifierOption> options;
@@ -244,6 +246,7 @@ class StorefrontModifierGroup {
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
       selectionType: json['selectionType'] as String? ?? 'single',
+      modifierKind: json['modifierKind'] as String? ?? 'choice',
       minSelect: (json['minSelect'] as num?)?.toInt() ?? 0,
       maxSelect: (json['maxSelect'] as num?)?.toInt() ?? 0,
       options: Storefront._readList(
@@ -260,12 +263,14 @@ class StorefrontModifierOption {
     required this.name,
     required this.priceDelta,
     required this.priceDeltaLabel,
+    required this.defaultSelected,
   });
 
   final String id;
   final String name;
   final double priceDelta;
   final String priceDeltaLabel;
+  final bool defaultSelected;
 
   factory StorefrontModifierOption.fromJson(Map<String, dynamic> json) {
     return StorefrontModifierOption(
@@ -273,6 +278,7 @@ class StorefrontModifierOption {
       name: json['name'] as String? ?? '',
       priceDelta: (json['priceDelta'] as num?)?.toDouble() ?? 0,
       priceDeltaLabel: json['priceDeltaLabel'] as String? ?? '',
+      defaultSelected: json['defaultSelected'] as bool? ?? false,
     );
   }
 }

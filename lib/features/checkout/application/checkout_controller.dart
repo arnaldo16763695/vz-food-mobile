@@ -10,10 +10,12 @@ class CheckoutLoadData {
   const CheckoutLoadData({
     required this.bag,
     required this.customer,
+    required this.paymentSettings,
   });
 
   final BagPayload bag;
   final CustomerContextPayload customer;
+  final CheckoutPaymentSettings paymentSettings;
 }
 
 class CheckoutController {
@@ -51,11 +53,19 @@ class CheckoutController {
     final customerFuture = _customerApi.fetchCustomerContext(
       accessToken: accessToken,
     );
+    final paymentSettingsFuture = _checkoutApi.fetchPaymentSettings(
+      tenantSlug: tenantSlug,
+    );
 
-    final results = await Future.wait<Object>([bagFuture, customerFuture]);
+    final results = await Future.wait<Object>([
+      bagFuture,
+      customerFuture,
+      paymentSettingsFuture,
+    ]);
     return CheckoutLoadData(
       bag: results[0] as BagPayload,
       customer: results[1] as CustomerContextPayload,
+      paymentSettings: results[2] as CheckoutPaymentSettings,
     );
   }
 

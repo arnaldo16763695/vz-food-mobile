@@ -52,6 +52,11 @@ Example intent:
 
 ## Current API Surfaces
 
+Reference docs:
+
+- Mobile API docs: `https://vzfood.ajedev.com/mobile-api-docs`
+- OpenAPI spec: `https://vzfood.ajedev.com/api/mobile/openapi`
+
 The backend currently exposes these customer-facing endpoints:
 
 ### Public

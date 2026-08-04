@@ -56,3 +56,20 @@ class CheckoutResult {
     );
   }
 }
+
+class CheckoutPaymentSettings {
+  const CheckoutPaymentSettings({
+    required this.mobilePaymentInstructions,
+    required this.bankTransferInstructions,
+  });
+
+  final String? mobilePaymentInstructions;
+  final String? bankTransferInstructions;
+
+  factory CheckoutPaymentSettings.fromJson(Map<String, dynamic> json) {
+    return CheckoutPaymentSettings(
+      mobilePaymentInstructions: json['mobilePaymentInstructions'] as String?,
+      bankTransferInstructions: json['bankTransferInstructions'] as String?,
+    );
+  }
+}

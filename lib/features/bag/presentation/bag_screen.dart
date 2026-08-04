@@ -3,6 +3,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_session.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/app_formatters.dart';
+import '../../../core/widgets/customer_footer_nav.dart';
+import '../../../core/widgets/quantity_stepper.dart';
 import '../application/bag_controller.dart';
 import '../application/bag_load_result.dart';
 import '../domain/bag_payload.dart';
@@ -28,32 +31,87 @@ class BagScreen extends StatefulWidget {
 
 class _BagScreenState extends State<BagScreen> {
   late final BagController _controller;
-  late Future<BagLoadResult> _future;
+  BagLoadResult? _result;
+  Object? _loadError;
+  bool _loading = true;
   String? _mutatingItemId;
 
   @override
   void initState() {
     super.initState();
     _controller = BagController(widget.bagApi, widget.authSession);
-    _future = _load();
+    _load();
   }
 
-  Future<BagLoadResult> _load() {
-    return _controller.load(
-      tenantSlug: widget.tenantSlug,
-      branchId: widget.branchId,
-    );
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
+
+    try {
+      final result = await _controller.load(
+        tenantSlug: widget.tenantSlug,
+        branchId: widget.branchId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _result = result;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _loadError = error;
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _refreshAfterMutation() async {
+    try {
+      final result = await _controller.load(
+        tenantSlug: widget.tenantSlug,
+        branchId: widget.branchId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _result = result;
+      });
+    } catch (_) {
+      // Keep the optimistic state if background refresh fails.
+    }
   }
 
   void _retry() {
-    setState(() {
-      _future = _load();
-    });
+    _load();
   }
 
   Future<void> _incrementItem(BagItem item) async {
     await _runBagMutation(
       itemId: item.id,
+      optimisticUpdate: (payload) {
+        return payload.copyWith(
+          items: payload.items
+              .map(
+                (candidate) => candidate.id == item.id
+                    ? candidate.copyWith(quantity: candidate.quantity + 1)
+                    : candidate,
+              )
+              .toList(growable: false),
+        );
+      },
       action: (accessToken) {
         return widget.bagApi.replaceItem(
           tenantSlug: widget.tenantSlug,
@@ -74,6 +132,22 @@ class _BagScreenState extends State<BagScreen> {
   Future<void> _decrementItem(BagItem item) async {
     await _runBagMutation(
       itemId: item.id,
+      optimisticUpdate: (payload) {
+        final updatedItems = <BagItem>[];
+        for (final candidate in payload.items) {
+          if (candidate.id != item.id) {
+            updatedItems.add(candidate);
+            continue;
+          }
+
+          final nextQuantity = candidate.quantity - 1;
+          if (nextQuantity > 0) {
+            updatedItems.add(candidate.copyWith(quantity: nextQuantity));
+          }
+        }
+
+        return payload.copyWith(items: updatedItems);
+      },
       action: (accessToken) {
         return widget.bagApi.decrementItem(
           tenantSlug: widget.tenantSlug,
@@ -88,6 +162,13 @@ class _BagScreenState extends State<BagScreen> {
   Future<void> _removeItem(BagItem item) async {
     await _runBagMutation(
       itemId: item.id,
+      optimisticUpdate: (payload) {
+        return payload.copyWith(
+          items: payload.items
+              .where((candidate) => candidate.id != item.id)
+              .toList(growable: false),
+        );
+      },
       action: (accessToken) {
         return widget.bagApi.removeItem(
           tenantSlug: widget.tenantSlug,
@@ -101,18 +182,33 @@ class _BagScreenState extends State<BagScreen> {
 
   Future<void> _runBagMutation({
     required String itemId,
+    required BagPayload Function(BagPayload payload) optimisticUpdate,
     required Future<void> Function(String accessToken) action,
   }) async {
     final accessToken = await widget.authSession.getAccessToken();
     if (accessToken == null || accessToken.isEmpty) {
       if (mounted) {
-        context.push('/account');
+        context.push(
+          '/account?tenantSlug=${widget.tenantSlug}&branchId=${widget.branchId}',
+        );
       }
       return;
     }
 
+    final currentResult = _result;
+    final currentPayload = currentResult?.payload;
+    if (currentResult == null || currentPayload == null) {
+      return;
+    }
+
+    final previousPayload = currentPayload;
+
     setState(() {
       _mutatingItemId = itemId;
+      _result = BagLoadResult(
+        status: currentResult.status,
+        payload: optimisticUpdate(currentPayload),
+      );
     });
 
     try {
@@ -121,16 +217,23 @@ class _BagScreenState extends State<BagScreen> {
         return;
       }
 
-      setState(() {
-        _future = _load();
-      });
+      await _refreshAfterMutation();
     } catch (error) {
       if (!mounted) {
         return;
       }
 
+      setState(() {
+        _result = BagLoadResult(
+          status: currentResult.status,
+          payload: previousPayload,
+        );
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo actualizar el bag: $error')),
+        SnackBar(
+          content: Text('No se pudo actualizar la bolsa de compra: $error'),
+        ),
       );
     } finally {
       if (mounted) {
@@ -143,44 +246,63 @@ class _BagScreenState extends State<BagScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final payload = _result?.payload;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Bag')),
+      appBar: AppBar(title: const Text('Bolsa de compra')),
+      bottomNavigationBar: CustomerFooterNav(
+        currentTab: CustomerFooterTab.bag,
+        tenantSlug: widget.tenantSlug,
+        branchId: widget.branchId,
+        authSession: widget.authSession,
+        bagApi: widget.bagApi,
+      ),
+      bottomSheet: payload == null || payload.isEmpty
+          ? null
+          : _CheckoutBottomBar(payload: payload),
       body: SafeArea(
-        child: FutureBuilder<BagLoadResult>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            if (snapshot.hasError) {
-              return _BagError(error: snapshot.error, onRetry: _retry);
-            }
-
-            final result = snapshot.data;
-            if (result == null) {
-              return const _BagEmpty();
-            }
-
-            if (result.requiresLogin) {
-              return const _BagRequiresLogin();
-            }
-
-            final payload = result.payload;
-            if (payload == null || payload.isEmpty) {
-              return const _BagEmpty();
-            }
-
-            return _BagView(
-              payload: payload,
-              mutatingItemId: _mutatingItemId,
-              onDecrement: _decrementItem,
-              onIncrement: _incrementItem,
-              onRemove: _removeItem,
-            );
-          },
+        child: Padding(
+          padding: EdgeInsets.only(
+            bottom: payload == null || payload.isEmpty ? 0 : 96,
+          ),
+          child: _buildBody(),
         ),
       ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_loadError != null) {
+      return _BagError(error: _loadError, onRetry: _retry);
+    }
+
+    final result = _result;
+    if (result == null) {
+      return const _BagEmpty();
+    }
+
+    if (result.requiresLogin) {
+      return _BagRequiresLogin(
+        tenantSlug: widget.tenantSlug,
+        branchId: widget.branchId,
+      );
+    }
+
+    final payload = result.payload;
+    if (payload == null || payload.isEmpty) {
+      return const _BagEmpty();
+    }
+
+    return _BagView(
+      payload: payload,
+      mutatingItemId: _mutatingItemId,
+      onDecrement: _decrementItem,
+      onIncrement: _incrementItem,
+      onRemove: _removeItem,
     );
   }
 }
@@ -215,19 +337,12 @@ class _BagView extends StatelessWidget {
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Tu bag', style: theme.textTheme.headlineMedium),
+              children: [
+              Text('Tu bolsa de compra', style: theme.textTheme.headlineMedium),
               const SizedBox(height: 8),
               Text(
-                'Esta primera version valida el contrato autenticado del bag antes de agregar mutaciones de cantidad y checkout.',
+                'La cantidad cambia al instante para que el cliente sienta una interaccion mas fluida mientras la red se sincroniza en segundo plano.',
                 style: theme.textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => context.push(
-                  '/storefront/${payload.items.first.tenantSlug}/checkout?branchId=${payload.items.first.branchId}',
-                ),
-                child: const Text('Ir a checkout'),
               ),
             ],
           ),
@@ -247,8 +362,50 @@ class _BagView extends StatelessWidget {
   }
 }
 
+class _CheckoutBottomBar extends StatelessWidget {
+  const _CheckoutBottomBar({required this.payload});
+
+  final BagPayload payload;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          border: Border(top: BorderSide(color: AppColors.border)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x14000000),
+              blurRadius: 16,
+              offset: Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () => context.push(
+              '/storefront/${payload.items.first.tenantSlug}/checkout?branchId=${payload.items.first.branchId}',
+            ),
+            child: const Text('Ir a checkout'),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _BagRequiresLogin extends StatelessWidget {
-  const _BagRequiresLogin();
+  const _BagRequiresLogin({
+    required this.tenantSlug,
+    required this.branchId,
+  });
+
+  final String tenantSlug;
+  final String branchId;
 
   @override
   Widget build(BuildContext context) {
@@ -266,12 +423,14 @@ class _BagRequiresLogin extends StatelessWidget {
               Text('Login requerido', style: theme.textTheme.titleLarge),
               const SizedBox(height: 8),
               Text(
-                'Bag es una superficie autenticada. La pantalla ya esta lista para el endpoint real, pero falta conectar Supabase Auth para obtener el Bearer token del cliente.',
+                'La bolsa de compra es una superficie autenticada. La pantalla ya esta lista para el endpoint real, pero falta conectar Supabase Auth para obtener el Bearer token del cliente.',
                 style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: () => context.push('/account'),
+                onPressed: () => context.push(
+                  '/account?tenantSlug=$tenantSlug&branchId=$branchId',
+                ),
                 child: const Text('Ir a cuenta'),
               ),
             ],
@@ -295,7 +454,7 @@ class _BagEmpty extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Text(
-            'El bag esta vacio para esta sucursal.',
+            'La bolsa de compra esta vacia para esta sucursal.',
             style: theme.textTheme.bodyMedium,
           ),
         ),
@@ -323,7 +482,10 @@ class _BagError extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('No se pudo cargar bag', style: theme.textTheme.titleLarge),
+              Text(
+                'No se pudo cargar la bolsa de compra',
+                style: theme.textTheme.titleLarge,
+              ),
               const SizedBox(height: 8),
               Text('$error', style: theme.textTheme.bodySmall),
               const SizedBox(height: 16),
@@ -354,6 +516,7 @@ class _BagItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final lineTotal = item.unitPrice * item.quantity;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -372,34 +535,35 @@ class _BagItemCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        onPressed: isMutating ? null : onDecrement,
-                        icon: const Icon(Icons.remove_circle_outline),
-                      ),
-                      Text(
-                        'x${item.quantity}',
-                        style: theme.textTheme.bodyLarge,
-                      ),
-                      IconButton(
-                        onPressed: isMutating ? null : onIncrement,
-                        icon: const Icon(Icons.add_circle_outline),
-                      ),
-                    ],
+                  QuantityStepper(
+                    quantity: item.quantity,
+                    onDecrement: isMutating ? null : onDecrement,
+                    onIncrement: isMutating ? null : onIncrement,
                   ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 160),
+                        child: Text(
+                          AppFormatters.currency(lineTotal),
+                          key: ValueKey('${item.id}-${item.quantity}'),
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: AppColors.brandPrimaryDark,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
                       Text(
-                        item.unitPriceLabel,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: AppColors.brandPrimaryDark,
+                        '${item.unitPriceLabel.isEmpty ? AppFormatters.currency(item.unitPrice) : item.unitPriceLabel} c/u',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppColors.textMuted,
                         ),
                       ),
                       TextButton(
                         onPressed: isMutating ? null : onRemove,
-                        child: Text(isMutating ? 'Actualizando...' : 'Eliminar'),
+                        child: Text(isMutating ? 'Sincronizando...' : 'Eliminar'),
                       ),
                     ],
                   ),
@@ -414,8 +578,52 @@ class _BagItemCard extends StatelessWidget {
                   ),
                 ),
               ],
+              if (item.modifierSelections.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: item.modifierSelections
+                      .map(
+                        (selection) => _BagModifierChip(selection: selection),
+                      )
+                      .toList(growable: false),
+                ),
+              ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BagModifierChip extends StatelessWidget {
+  const _BagModifierChip({required this.selection});
+
+  final BagModifierSelection selection;
+
+  @override
+  Widget build(BuildContext context) {
+    final isAdded = selection.priceDelta > 0;
+    final label = isAdded ? 'Agregado' : 'Excluido';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: isAdded
+            ? AppColors.brandPrimary.withValues(alpha: 0.10)
+            : AppColors.background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: isAdded ? AppColors.brandPrimary : AppColors.border,
+        ),
+      ),
+      child: Text(
+        '$label: ${selection.modifierOptionName}',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: isAdded ? AppColors.brandPrimaryDark : AppColors.textPrimary,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

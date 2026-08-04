@@ -15,4 +15,16 @@ class StorefrontController {
       branchId: branchId,
     );
   }
+
+  Future<List<StorefrontProduct>> searchProducts({
+    required String tenantSlug,
+    required String query,
+    String? branchId,
+  }) {
+    return _api.searchProducts(
+      tenantSlug: tenantSlug,
+      query: query,
+      branchId: branchId,
+    );
+  }
 }

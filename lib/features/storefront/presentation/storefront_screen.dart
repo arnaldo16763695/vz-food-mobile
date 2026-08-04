@@ -1,7 +1,14 @@
+// ignore_for_file: unused_element, unused_field
+
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_session.dart';
+import '../../../core/utils/app_formatters.dart';
+import '../../../core/widgets/customer_footer_nav.dart';
+import '../../../core/widgets/quantity_stepper.dart';
 import '../../bag/infrastructure/bag_api.dart';
 import '../../../core/theme/app_colors.dart';
 import '../application/storefront_controller.dart';
@@ -30,27 +37,91 @@ class StorefrontScreen extends StatefulWidget {
 
 class _StorefrontScreenState extends State<StorefrontScreen> {
   late final StorefrontController _controller;
-  late Future<StorefrontPayload> _future;
+  StorefrontPayload? _payload;
+  Object? _loadError;
+  bool _loading = true;
+  DateTime? _loadStartedAt;
   String? _addingProductId;
 
   @override
   void initState() {
     super.initState();
     _controller = StorefrontController(widget.storefrontApi);
-    _future = _load();
+    _load();
   }
 
-  Future<StorefrontPayload> _load() {
-    return _controller.load(
-      tenantSlug: widget.tenantSlug,
-      branchId: widget.branchId,
-    );
+  @override
+  void didUpdateWidget(covariant StorefrontScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final tenantChanged = oldWidget.tenantSlug != widget.tenantSlug;
+    final branchChanged = oldWidget.branchId != widget.branchId;
+
+    if (tenantChanged || branchChanged) {
+      setState(() {
+        _addingProductId = null;
+      });
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _loadError = null;
+      _loadStartedAt = DateTime.now();
+    });
+
+    try {
+      debugPrint(
+        'Storefront load start tenant=${widget.tenantSlug} branch=${widget.branchId}',
+      );
+
+      final payload = await _controller
+          .load(tenantSlug: widget.tenantSlug, branchId: widget.branchId)
+          .timeout(const Duration(seconds: 20));
+
+      debugPrint(
+        'Storefront load success tenant=${widget.tenantSlug} branch=${widget.branchId} menu=${payload.storefront.menu.length} branches=${payload.storefront.branches.length}',
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _payload = payload;
+        _loading = false;
+      });
+    } catch (error) {
+      debugPrint(
+        'Storefront load error tenant=${widget.tenantSlug} branch=${widget.branchId} error=$error',
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _loadError = error;
+        _loading = false;
+      });
+    }
   }
 
   void _retry() {
-    setState(() {
-      _future = _load();
-    });
+    _load();
+  }
+
+  Future<List<StorefrontProduct>> _searchProducts({
+    required String query,
+    String? branchId,
+  }) {
+    return _controller.searchProducts(
+      tenantSlug: widget.tenantSlug,
+      branchId: branchId,
+      query: query,
+    );
   }
 
   Future<void> _addProduct(StorefrontProduct product) async {
@@ -60,12 +131,7 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
       return;
     }
 
-    if (product.requiresCustomization) {
-      await _openConfigurator(product);
-      return;
-    }
-
-    await _submitAddToBag(product: product);
+    await _openConfigurator(product);
   }
 
   Future<void> _openConfigurator(StorefrontProduct product) async {
@@ -83,6 +149,7 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
       product: product,
       variantId: configuration.variantId,
       modifierSelections: configuration.modifierSelections,
+      quantity: configuration.quantity,
     );
   }
 
@@ -90,6 +157,7 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
     required StorefrontProduct product,
     String? variantId,
     List<Map<String, dynamic>> modifierSelections = const [],
+    int quantity = 1,
   }) async {
     final activeBranchId = widget.branchId;
     if (activeBranchId == null || activeBranchId.isEmpty) {
@@ -100,7 +168,10 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
     final accessToken = await widget.authSession.getAccessToken();
     if (accessToken == null || accessToken.isEmpty) {
       if (mounted) {
-        context.push('/account');
+        final activeBranchId = widget.branchId ?? '';
+        context.push(
+          '/account?tenantSlug=${widget.tenantSlug}${activeBranchId.isEmpty ? '' : '&branchId=$activeBranchId'}',
+        );
       }
       return;
     }
@@ -114,6 +185,7 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
         tenantSlug: widget.tenantSlug,
         branchId: activeBranchId,
         productId: product.id,
+        quantity: quantity,
         productVariantId: variantId ?? product.defaultVariantId,
         modifierSelections: modifierSelections,
         accessToken: accessToken,
@@ -125,9 +197,10 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${product.name} agregado al bag.'),
+          content: Text('${product.name} agregado a la bolsa de compra.'),
+          duration: const Duration(seconds: 5),
           action: SnackBarAction(
-            label: 'Ver bag',
+            label: 'Ver bolsa',
             onPressed: () {
               context.push(
                 '/storefront/${widget.tenantSlug}/bag?branchId=$activeBranchId',
@@ -152,179 +225,505 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _confirmReturnToMarketplace() async {
+    final shouldLeave = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Volver al marketplace'),
+          content: const Text(
+            'Si sales del storefront volveras al marketplace. Quieres continuar?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Volver'),
+            ),
+          ],
+        );
+      },
     );
+
+    if (shouldLeave == true && mounted) {
+      context.go('/marketplace');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Storefront')),
-      body: SafeArea(
-        child: FutureBuilder<StorefrontPayload>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            if (snapshot.hasError) {
-              return _StorefrontError(
-                error: snapshot.error,
-                onRetry: _retry,
-              );
-            }
-
-            final payload = snapshot.data;
-            if (payload == null) {
-              return const _StorefrontEmpty();
-            }
-
-            return _StorefrontView(
-              addingProductId: _addingProductId,
-              onAddProduct: _addProduct,
-              payload: payload,
-              tenantSlug: widget.tenantSlug,
-            );
-          },
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: _confirmReturnToMarketplace,
         ),
+        title: const Text('Storefront'),
       ),
+      bottomNavigationBar: CustomerFooterNav(
+        currentTab: CustomerFooterTab.home,
+        tenantSlug: widget.tenantSlug,
+        branchId: widget.branchId,
+        authSession: widget.authSession,
+        bagApi: widget.bagApi,
+      ),
+      body: SafeArea(child: _buildBody()),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              'Cargando storefront...',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            if (_loadStartedAt != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Tenant: ${widget.tenantSlug}${widget.branchId == null || widget.branchId!.isEmpty ? '' : ' · Branch: ${widget.branchId}'}',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    if (_loadError != null) {
+      return _StorefrontError(error: _loadError, onRetry: _retry);
+    }
+
+    final payload = _payload;
+    if (payload == null) {
+      return const _StorefrontEmpty();
+    }
+
+    return _StorefrontView(
+      addingProductId: _addingProductId,
+      onAddProduct: _addProduct,
+      onSearchProducts: _searchProducts,
+      payload: payload,
+      tenantSlug: widget.tenantSlug,
     );
   }
 }
 
-class _StorefrontView extends StatelessWidget {
+class _StorefrontView extends StatefulWidget {
   const _StorefrontView({
     required this.addingProductId,
     required this.onAddProduct,
+    required this.onSearchProducts,
     required this.payload,
     required this.tenantSlug,
   });
 
   final String? addingProductId;
   final Future<void> Function(StorefrontProduct product) onAddProduct;
+  final Future<List<StorefrontProduct>> Function({
+    required String query,
+    String? branchId,
+  }) onSearchProducts;
   final StorefrontPayload payload;
   final String tenantSlug;
 
   @override
+  State<_StorefrontView> createState() => _StorefrontViewState();
+}
+
+class _StorefrontViewState extends State<_StorefrontView> {
+  String _searchQuery = '';
+  List<StorefrontProduct>? _searchResults;
+  Object? _searchError;
+  Timer? _searchDebounce;
+  int _searchRequestId = 0;
+  bool _isSearching = false;
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _StorefrontView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final previousActiveBranchId =
+        oldWidget.payload.storefront.activeBranch?.id;
+    final nextActiveBranchId = widget.payload.storefront.activeBranch?.id;
+    final tenantChanged =
+        oldWidget.payload.storefront.tenant.slug !=
+        widget.payload.storefront.tenant.slug;
+    final branchChanged = previousActiveBranchId != nextActiveBranchId;
+
+    if (tenantChanged || branchChanged) {
+      _searchQuery = '';
+      _searchResults = null;
+      _searchError = null;
+      _isSearching = false;
+      _searchRequestId += 1;
+      _searchDebounce?.cancel();
+    }
+  }
+
+  void _handleSearchChanged(String value, String? branchId) {
+    _searchDebounce?.cancel();
+
+    setState(() {
+      _searchQuery = value;
+      _searchError = null;
+      if (value.trim().isEmpty) {
+        _searchResults = null;
+        _isSearching = false;
+      } else {
+        _isSearching = true;
+      }
+    });
+
+    final normalizedQuery = value.trim();
+    if (normalizedQuery.isEmpty) {
+      _searchRequestId += 1;
+      return;
+    }
+
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () async {
+      final requestId = ++_searchRequestId;
+
+      try {
+        final results = await widget.onSearchProducts(
+          query: normalizedQuery,
+          branchId: branchId,
+        );
+
+        if (!mounted || requestId != _searchRequestId) {
+          return;
+        }
+
+        setState(() {
+          _searchResults = results;
+          _searchError = null;
+          _isSearching = false;
+        });
+      } catch (error) {
+        if (!mounted || requestId != _searchRequestId) {
+          return;
+        }
+
+        setState(() {
+          _searchError = error;
+          _searchResults = const [];
+          _isSearching = false;
+        });
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final storefront = payload.storefront;
-    final menuByCategory = storefront.menuByCategory;
+    final storefront = widget.payload.storefront;
+    final activeBranchId = storefront.activeBranch?.id;
+    final hasMultipleBranches = storefront.branches.length > 1;
+    final normalizedQuery = _searchQuery.trim().toLowerCase();
+    final visibleProducts = normalizedQuery.isEmpty
+        ? storefront.menu
+        : (_searchResults ?? const <StorefrontProduct>[]);
+    final selectedBranchId =
+        storefront.branches.any((branch) => branch.id == activeBranchId)
+        ? activeBranchId
+        : null;
 
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: AppColors.brandPrimaryDark,
-            borderRadius: BorderRadius.circular(28),
+        _StorefrontHero(storefront: storefront),
+        const SizedBox(height: 20),
+        if (storefront.hasMenu)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Text(
+              '${storefront.menu.length} productos disponibles',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
+        if (hasMultipleBranches) ...[
+          _SectionCard(
+            title: 'Sucursales',
+            subtitle:
+                'El storefront puede cambiar segun la sucursal activa. Este selector prepara el flujo real de la bolsa de compra por sucursal.',
+            child: _BranchSelect(
+              branches: storefront.branches,
+              selectedBranchId: selectedBranchId,
+              onChanged: (branchId) {
+                if (branchId == null || branchId.isEmpty) {
+                  return;
+                }
+                context.go(
+                  '/storefront/${widget.tenantSlug}?branchId=$branchId',
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        _SectionCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                storefront.tenant.name,
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                storefront.activeBranch?.name ?? 'Sucursal sin seleccionar',
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'ETA ${storefront.etaMinutes} min',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: Colors.white70,
-                ),
+              _ProductSearchField(
+                initialValue: _searchQuery,
+                onChanged: (value) => _handleSearchChanged(value, activeBranchId),
               ),
               const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: storefront.activeBranch == null
-                    ? null
-                    : () {
-                        context.push(
-                          '/storefront/$tenantSlug/bag?branchId=${storefront.activeBranch!.id}',
-                        );
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: AppColors.brandPrimaryDark,
+              if (normalizedQuery.isNotEmpty && !_isSearching) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Text(
+                    'Resultados para "${_searchQuery.trim()}"',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
-                child: const Text('Ver bag'),
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton(
-                onPressed: () => context.push('/storefront/$tenantSlug/orders'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white54),
+                const SizedBox(height: 16),
+              ],
+              if (!storefront.hasMenu)
+                const _EmptyBox(
+                  message: 'Esta sucursal no tiene productos visibles todavia.',
+                )
+              else if (_isSearching)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else if (_searchError != null)
+                const _EmptyBox(
+                  message: 'No se pudo completar la busqueda. Intenta de nuevo.',
+                )
+              else if (visibleProducts.isEmpty)
+                const _EmptyBox(
+                  message: 'No encontramos productos con esa busqueda.',
+                )
+              else
+                _TwoColumnProductGrid(
+                  products: visibleProducts,
+                  addingProductId: widget.addingProductId,
+                  onAddProduct: widget.onAddProduct,
                 ),
-                child: const Text('Ver pedidos'),
-              ),
             ],
           ),
-        ),
-        const SizedBox(height: 20),
-        _SectionCard(
-          title: 'Sucursales',
-          subtitle: 'El storefront puede cambiar segun la sucursal activa. Este selector prepara el flujo real de bag por branch.',
-          child: storefront.branches.isEmpty
-              ? const _EmptyBox(message: 'No hay sucursales disponibles.')
-              : Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: storefront.branches
-                      .map(
-                        (branch) => _BranchChip(
-                          branch: branch,
-                          isActive: branch.id == storefront.activeBranch?.id,
-                          onTap: () {
-                            context.go(
-                              '/storefront/$tenantSlug?branchId=${branch.id}',
-                            );
-                          },
-                        ),
-                      )
-                      .toList(),
-                ),
-        ),
-        const SizedBox(height: 16),
-        _SectionCard(
-          title: 'Menu inicial',
-          subtitle: 'Ya agrupamos por categoria para que la siguiente iteracion pueda conectar detalle de producto y bag sin rehacer esta pantalla.',
-          child: storefront.hasMenu
-              ? Column(
-                  children: menuByCategory.entries
-                      .map(
-                        (entry) => _CategorySection(
-                          addingProductId: addingProductId,
-                          onAddProduct: onAddProduct,
-                          title: entry.key,
-                          products: entry.value,
-                        ),
-                      )
-                      .toList(),
-                )
-              : const _EmptyBox(message: 'Esta sucursal no tiene productos visibles todavia.'),
         ),
       ],
     );
   }
 }
 
+class _StorefrontHero extends StatelessWidget {
+  const _StorefrontHero({required this.storefront});
+
+  final Storefront storefront;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final activeBranchHero = storefront.activeBranch?.heroImageUrl?.trim();
+    final tenantHero = storefront.tenant.heroImageUrl?.trim();
+    final heroImageUrl = activeBranchHero != null && activeBranchHero.isNotEmpty
+        ? activeBranchHero
+        : tenantHero;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A0F172A),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: Stack(
+          children: [
+            AspectRatio(
+              aspectRatio: 16 / 10,
+              child: heroImageUrl != null && heroImageUrl.isNotEmpty
+                  ? Image.network(
+                      heroImageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const _StorefrontHeroFallback();
+                      },
+                    )
+                  : const _StorefrontHeroFallback(),
+            ),
+            const Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0x33147563), Color(0xE6147563)],
+                  ),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0x26FFFFFF),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        storefront.activeBranch?.name ??
+                            'Sucursal sin seleccionar',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      storefront.tenant.name,
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: Colors.white,
+                        height: 1.05,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Explora el menu y agrega productos rapido desde el catalogo.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: const Color(0xE6FFFFFF),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _HeroStatChip(
+                            icon: Icons.schedule_rounded,
+                            label: '${storefront.etaMinutes} min',
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _HeroStatChip(
+                            icon: Icons.grid_view_rounded,
+                            label:
+                                '${storefront.menuByCategory.length} categorias',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StorefrontHeroFallback extends StatelessWidget {
+  const _StorefrontHeroFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.brandPrimaryDark,
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.storefront_rounded,
+        color: Color(0x66FFFFFF),
+        size: 56,
+      ),
+    );
+  }
+}
+
+class _HeroStatChip extends StatelessWidget {
+  const _HeroStatChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0x21FFFFFF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x26FFFFFF)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.white),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _StorefrontError extends StatelessWidget {
-  const _StorefrontError({
-    required this.error,
-    required this.onRetry,
-  });
+  const _StorefrontError({required this.error, required this.onRetry});
 
   final Object? error;
   final VoidCallback onRetry;
@@ -342,11 +741,17 @@ class _StorefrontError extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('No se pudo cargar storefront', style: theme.textTheme.titleLarge),
+              Text(
+                'No se pudo cargar storefront',
+                style: theme.textTheme.titleLarge,
+              ),
               const SizedBox(height: 8),
               Text('$error', style: theme.textTheme.bodySmall),
               const SizedBox(height: 16),
-              ElevatedButton(onPressed: onRetry, child: const Text('Reintentar')),
+              ElevatedButton(
+                onPressed: onRetry,
+                child: const Text('Reintentar'),
+              ),
             ],
           ),
         ),
@@ -366,13 +771,13 @@ class _StorefrontEmpty extends StatelessWidget {
 
 class _SectionCard extends StatelessWidget {
   const _SectionCard({
-    required this.title,
-    required this.subtitle,
+    this.title,
+    this.subtitle,
     required this.child,
   });
 
-  final String title;
-  final String subtitle;
+  final String? title;
+  final String? subtitle;
   final Widget child;
 
   @override
@@ -385,11 +790,95 @@ class _SectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: theme.textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Text(subtitle, style: theme.textTheme.bodyMedium),
-            const SizedBox(height: 16),
+            if (title != null && title!.isNotEmpty) ...[
+              Text(title!, style: theme.textTheme.titleLarge),
+              if (subtitle != null && subtitle!.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(subtitle!, style: theme.textTheme.bodyMedium),
+              ],
+              const SizedBox(height: 16),
+            ],
             child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BranchSelect extends StatelessWidget {
+  const _BranchSelect({
+    required this.branches,
+    required this.selectedBranchId,
+    required this.onChanged,
+  });
+
+  final List<StorefrontBranch> branches;
+  final String? selectedBranchId;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    StorefrontBranch? selectedBranch;
+    for (final branch in branches) {
+      if (branch.id == selectedBranchId) {
+        selectedBranch = branch;
+        break;
+      }
+    }
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: () async {
+        final value = await showModalBottomSheet<String>(
+          context: context,
+          builder: (context) {
+            return SafeArea(
+              child: ListView(
+                shrinkWrap: true,
+                children: branches
+                    .map(
+                      (branch) => ListTile(
+                        title: Text(branch.name),
+                        trailing: branch.id == selectedBranchId
+                            ? const Icon(Icons.check_rounded)
+                            : null,
+                        onTap: () => Navigator.of(context).pop(branch.id),
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            );
+          },
+        );
+
+        onChanged(value);
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Sucursal activa', style: theme.textTheme.bodySmall),
+                  const SizedBox(height: 4),
+                  Text(
+                    selectedBranch?.name ?? 'Seleccionar sucursal',
+                    style: theme.textTheme.bodyLarge,
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.keyboard_arrow_down_rounded),
           ],
         ),
       ),
@@ -419,38 +908,88 @@ class _EmptyBox extends StatelessWidget {
   }
 }
 
-class _BranchChip extends StatelessWidget {
-  const _BranchChip({
-    required this.branch,
-    required this.isActive,
-    required this.onTap,
+class _ProductSearchField extends StatefulWidget {
+  const _ProductSearchField({
+    required this.initialValue,
+    required this.onChanged,
   });
 
-  final StorefrontBranch branch;
-  final bool isActive;
-  final VoidCallback onTap;
+  final String initialValue;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_ProductSearchField> createState() => _ProductSearchFieldState();
+}
+
+class _ProductSearchFieldState extends State<_ProductSearchField> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+    _controller.addListener(_handleTextChanged);
+  }
+
+  void _handleTextChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProductSearchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.initialValue != widget.initialValue &&
+        _controller.text != widget.initialValue) {
+      _controller.text = widget.initialValue;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_handleTextChanged);
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: isActive ? AppColors.brandPrimary : AppColors.background,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: isActive ? AppColors.brandPrimary : AppColors.border,
-          ),
+    return TextField(
+      controller: _controller,
+      onChanged: widget.onChanged,
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        hintText: 'Buscar productos',
+        prefixIcon: const Icon(Icons.search_rounded),
+        suffixIcon: _controller.text.isEmpty
+            ? null
+            : IconButton(
+                onPressed: () {
+                  _controller.clear();
+                  widget.onChanged('');
+                  setState(() {});
+                },
+                icon: const Icon(Icons.close_rounded),
+              ),
+        filled: true,
+        fillColor: AppColors.background,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
         ),
-        child: Text(
-          branch.name,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: isActive ? Colors.white : AppColors.textPrimary,
-          ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide(color: AppColors.brandPrimary),
         ),
       ),
     );
@@ -481,14 +1020,122 @@ class _CategorySection extends StatelessWidget {
         children: [
           Text(title, style: theme.textTheme.titleLarge),
           const SizedBox(height: 12),
-          ...products.map(
-            (product) => _ProductTile(
-              product: product,
-              isAdding: addingProductId == product.id,
-              onAdd: () => onAddProduct(product),
-            ),
+          _TwoColumnProductGrid(
+            products: products,
+            addingProductId: addingProductId,
+            onAddProduct: onAddProduct,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _TwoColumnProductGrid extends StatelessWidget {
+  const _TwoColumnProductGrid({
+    required this.products,
+    required this.addingProductId,
+    required this.onAddProduct,
+  });
+
+  final List<StorefrontProduct> products;
+  final String? addingProductId;
+  final Future<void> Function(StorefrontProduct product) onAddProduct;
+
+  @override
+  Widget build(BuildContext context) {
+    const spacing = 14.0;
+    final rows = <Widget>[];
+
+    for (var index = 0; index < products.length; index += 2) {
+      final leftProduct = products[index];
+      final rightProduct = index + 1 < products.length
+          ? products[index + 1]
+          : null;
+
+      rows.add(
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _ProductTile(
+                  product: leftProduct,
+                  isAdding: addingProductId == leftProduct.id,
+                  onAdd: () => onAddProduct(leftProduct),
+                ),
+              ),
+              const SizedBox(width: spacing),
+              Expanded(
+                child: rightProduct == null
+                    ? const SizedBox.shrink()
+                    : _ProductTile(
+                        product: rightProduct,
+                        isAdding: addingProductId == rightProduct.id,
+                        onAdd: () => onAddProduct(rightProduct),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        for (var index = 0; index < rows.length; index++) ...[
+          rows[index],
+          if (index != rows.length - 1) const SizedBox(height: spacing),
+        ],
+      ],
+    );
+  }
+}
+
+class _SimpleProductCard extends StatelessWidget {
+  const _SimpleProductCard({
+    required this.product,
+    required this.addingProductId,
+    required this.onAddProduct,
+  });
+
+  final StorefrontProduct product;
+  final String? addingProductId;
+  final Future<void> Function(StorefrontProduct product) onAddProduct;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isAdding = addingProductId == product.id;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(product.name, style: theme.textTheme.titleLarge),
+            const SizedBox(height: 6),
+            if (product.description.trim().isNotEmpty)
+              Text(product.description, style: theme.textTheme.bodyMedium),
+            const SizedBox(height: 10),
+            Text(
+              product.basePrice,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: AppColors.brandPrimaryDark,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: ElevatedButton(
+                onPressed: isAdding ? null : () => onAddProduct(product),
+                child: Text(isAdding ? 'Agregando...' : 'Agregar'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -508,52 +1155,287 @@ class _ProductTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final normalizedImageUrl = product.imageUrl?.trim();
+    final hasImage =
+        normalizedImageUrl != null && normalizedImageUrl.isNotEmpty;
+    final statusLabel = product.requiresCustomization
+        ? 'Personalizable'
+        : 'Listo';
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.background,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(product.name, style: theme.textTheme.titleLarge),
-            const SizedBox(height: 6),
-            Text(product.category, style: theme.textTheme.bodySmall),
-            const SizedBox(height: 10),
-            Text(product.description, style: theme.textTheme.bodyMedium),
-            const SizedBox(height: 12),
-            Text(
-              product.basePrice,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: AppColors.brandPrimaryDark,
+      padding: EdgeInsets.zero,
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        clipBehavior: Clip.antiAlias,
+        child: Ink(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.border),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x140F172A),
+                blurRadius: 16,
+                offset: Offset(0, 10),
               ),
-            ),
-            const SizedBox(height: 12),
-            if (product.requiresCustomization)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: ElevatedButton(
-                  onPressed: isAdding ? null : onAdd,
-                  child: Text(isAdding ? 'Abriendo...' : 'Configurar'),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
                 ),
-              )
-            else
-              Align(
-                alignment: Alignment.centerLeft,
-                child: ElevatedButton(
-                  onPressed: isAdding ? null : onAdd,
-                  child: Text(isAdding ? 'Agregando...' : 'Agregar'),
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      hasImage
+                          ? Image.network(
+                              normalizedImageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const _ProductImagePlaceholder();
+                              },
+                              loadingBuilder:
+                                  (context, child, loadingProgress) {
+                                    if (loadingProgress == null) {
+                                      return child;
+                                    }
+
+                                    return const _ProductImagePlaceholder();
+                                  },
+                            )
+                          : const _ProductImagePlaceholder(),
+                      const Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Color(0x05000000), Color(0x36000000)],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: _ModernBadge(
+                          label: statusLabel,
+                          isAccent: product.requiresCustomization,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-          ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F6F3),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        product.category,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      product.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontSize: 15,
+                        height: 1.15,
+                      ),
+                    ),
+                    if (product.description.trim().isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        product.description,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textMuted,
+                          fontSize: 12,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    Text(
+                      product.basePrice,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: AppColors.brandPrimaryDark,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.tonal(
+                        onPressed: isAdding ? null : onAdd,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.brandPrimary.withValues(
+                            alpha: 0.14,
+                          ),
+                          foregroundColor: AppColors.brandPrimaryDark,
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          textStyle: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isAdding
+                                  ? Icons.hourglass_top_rounded
+                                  : Icons.add_rounded,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(isAdding ? 'Agregando' : 'Agregar'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _ModernBadge extends StatelessWidget {
+  const _ModernBadge({required this.label, required this.isAccent});
+
+  final String label;
+  final bool isAccent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: isAccent ? AppColors.accentWarm : Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A000000),
+            blurRadius: 8,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: isSelected ? AppColors.brandPrimaryDark : AppColors.background,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: isSelected ? Colors.white : AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductImagePlaceholder extends StatelessWidget {
+  const _ProductImagePlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFFE7EFEB),
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.fastfood_rounded,
+        size: 44,
+        color: AppColors.textMuted,
+      ),
+    );
+  }
+}
+
+class _ProductMetaChip extends StatelessWidget {
+  const _ProductMetaChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Text(label, style: theme.textTheme.bodySmall),
     );
   }
 }
@@ -562,10 +1444,12 @@ class _ConfiguredProductResult {
   const _ConfiguredProductResult({
     required this.variantId,
     required this.modifierSelections,
+    required this.quantity,
   });
 
   final String? variantId;
   final List<Map<String, dynamic>> modifierSelections;
+  final int quantity;
 }
 
 class _ProductConfiguratorSheet extends StatefulWidget {
@@ -581,12 +1465,26 @@ class _ProductConfiguratorSheet extends StatefulWidget {
 class _ProductConfiguratorSheetState extends State<_ProductConfiguratorSheet> {
   late String? _selectedVariantId;
   final Map<String, Set<String>> _selectedOptionsByGroup = {};
+  int _quantity = 1;
   String? _validationMessage;
 
   @override
   void initState() {
     super.initState();
     _selectedVariantId = widget.product.defaultVariantId;
+    for (final group in widget.product.modifierGroups) {
+      final defaultSelectedIds = group.options
+          .where((option) => option.defaultSelected)
+          .map((option) => option.id);
+
+      final initialSelection = group.isSingleSelection
+          ? defaultSelectedIds.take(1).toSet()
+          : defaultSelectedIds.toSet();
+
+      if (initialSelection.isNotEmpty) {
+        _selectedOptionsByGroup[group.id] = initialSelection;
+      }
+    }
   }
 
   void _toggleOption(
@@ -622,7 +1520,8 @@ class _ProductConfiguratorSheetState extends State<_ProductConfiguratorSheet> {
       final selectedCount = _selectedOptionsByGroup[group.id]?.length ?? 0;
       if (selectedCount < group.minSelect) {
         setState(() {
-          _validationMessage = 'Completa la seleccion requerida en ${group.name}.';
+          _validationMessage =
+              'Completa la seleccion requerida en ${group.name}.';
         });
         return;
       }
@@ -631,7 +1530,9 @@ class _ProductConfiguratorSheetState extends State<_ProductConfiguratorSheet> {
     final selections = <Map<String, dynamic>>[];
     for (final group in widget.product.modifierGroups) {
       final selectedIds = _selectedOptionsByGroup[group.id] ?? const <String>{};
-      for (final option in group.options.where((option) => selectedIds.contains(option.id))) {
+      for (final option in group.options.where(
+        (option) => selectedIds.contains(option.id),
+      )) {
         selections.add({
           'modifierGroupId': group.id,
           'modifierGroupName': group.name,
@@ -646,8 +1547,59 @@ class _ProductConfiguratorSheetState extends State<_ProductConfiguratorSheet> {
       _ConfiguredProductResult(
         variantId: _selectedVariantId,
         modifierSelections: selections,
+        quantity: _quantity,
       ),
     );
+  }
+
+  String? _modifierStatusLabel(StorefrontModifierOption option, bool selected) {
+    if (option.defaultSelected) {
+      return selected ? 'Incluido' : 'Excluido';
+    }
+
+    if (!selected) {
+      return null;
+    }
+
+    return option.priceDelta > 0 ? 'Agregado' : 'Incluido';
+  }
+
+  double get _unitPrice {
+    final selectedVariant = widget.product.variants.cast<StorefrontProductVariant?>().firstWhere(
+      (variant) => variant?.id == _selectedVariantId,
+      orElse: () => null,
+    );
+    final baseLabel = selectedVariant?.basePrice ?? widget.product.basePrice;
+    final modifiersTotal = widget.product.modifierGroups.fold<double>(0, (
+      total,
+      group,
+    ) {
+      final selectedIds = _selectedOptionsByGroup[group.id] ?? const <String>{};
+      return total +
+          group.options
+              .where((option) => selectedIds.contains(option.id))
+              .fold<double>(0, (sum, option) => sum + option.priceDelta);
+    });
+
+    return _parseMoneyLabel(baseLabel) + modifiersTotal;
+  }
+
+  String get _totalLabel => AppFormatters.currency(_unitPrice * _quantity);
+
+  String get _unitPriceLabel => AppFormatters.currency(_unitPrice);
+
+  double _parseMoneyLabel(String value) {
+    final normalized = value.replaceAll(RegExp(r'[^0-9,.-]'), '');
+    if (normalized.isEmpty) {
+      return 0;
+    }
+
+    final usesCommaAsDecimal = normalized.contains(',') && normalized.contains('.');
+    final sanitized = usesCommaAsDecimal
+        ? normalized.replaceAll(',', '')
+        : normalized.replaceAll(',', '.');
+
+    return double.tryParse(sanitized) ?? 0;
   }
 
   @override
@@ -658,19 +1610,72 @@ class _ProductConfiguratorSheetState extends State<_ProductConfiguratorSheet> {
 
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomInset),
+        padding: EdgeInsets.fromLTRB(20, 28, 20, 20 + bottomInset),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(product.name, style: theme.textTheme.headlineMedium),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(product.description, style: theme.textTheme.bodyMedium),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Total', style: theme.textTheme.bodySmall),
+                          const SizedBox(height: 4),
+                          Text(
+                            _totalLabel,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              color: AppColors.brandPrimaryDark,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$_unitPriceLabel c/u',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    QuantityStepper(
+                      quantity: _quantity,
+                      compact: true,
+                      onDecrement: _quantity > 1
+                          ? () {
+                              setState(() {
+                                _quantity -= 1;
+                              });
+                            }
+                          : null,
+                      onIncrement: () {
+                        setState(() {
+                          _quantity += 1;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
               if (product.variants.isNotEmpty) ...[
-                const SizedBox(height: 20),
+                const SizedBox(height: 18),
                 Text('Variante', style: theme.textTheme.titleLarge),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 ...product.variants.map(
                   (variant) => _SelectableOptionTile(
                     title: variant.name,
@@ -686,47 +1691,55 @@ class _ProductConfiguratorSheetState extends State<_ProductConfiguratorSheet> {
               ],
               ...product.modifierGroups.map(
                 (group) => Padding(
-                  padding: const EdgeInsets.only(top: 20),
+                  padding: const EdgeInsets.only(top: 18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(group.name, style: theme.textTheme.titleLarge),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 3),
                       Text(
                         group.minSelect > 0
                             ? 'Seleccion requerida'
                             : 'Opcional',
                         style: theme.textTheme.bodySmall,
                       ),
-                      const SizedBox(height: 8),
-                      ...group.options.map(
-                        (option) {
-                          final selected =
-                              _selectedOptionsByGroup[group.id]?.contains(option.id) ?? false;
+                      const SizedBox(height: 6),
+                      ...group.options.map((option) {
+                        final selected =
+                            _selectedOptionsByGroup[group.id]?.contains(
+                              option.id,
+                            ) ??
+                            false;
 
-                          if (group.isSingleSelection) {
-                            return _SelectableOptionTile(
-                              title: option.name,
-                              subtitle: option.priceDeltaLabel,
-                              selected:
-                                  _selectedOptionsByGroup[group.id]?.firstOrNull == option.id,
-                              onTap: () {
-                                _toggleOption(group, option, true);
-                              },
-                            );
-                          }
-
-                          return CheckboxListTile(
-                            value: selected,
-                            onChanged: (value) {
-                              _toggleOption(group, option, value ?? false);
+                        if (group.isSingleSelection) {
+                          final isSelected =
+                              _selectedOptionsByGroup[group.id]?.firstOrNull ==
+                              option.id;
+                          return _SelectableOptionTile(
+                            title: option.name,
+                            subtitle: option.priceDeltaLabel,
+                            selected: isSelected,
+                            selectedLabel: _modifierStatusLabel(
+                              option,
+                              isSelected,
+                            ),
+                            onTap: () {
+                              _toggleOption(group, option, true);
                             },
-                            title: Text(option.name),
-                            subtitle: Text(option.priceDeltaLabel),
-                            contentPadding: EdgeInsets.zero,
                           );
-                        },
-                      ),
+                        }
+
+                        return _SelectableOptionTile(
+                          title: option.name,
+                          subtitle: option.priceDeltaLabel,
+                          selected: selected,
+                          selectedLabel: _modifierStatusLabel(option, selected),
+                          useCheckboxIcon: true,
+                          onTap: () {
+                            _toggleOption(group, option, !selected);
+                          },
+                        );
+                      }),
                     ],
                   ),
                 ),
@@ -740,12 +1753,12 @@ class _ProductConfiguratorSheetState extends State<_ProductConfiguratorSheet> {
                   ),
                 ),
               ],
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _submit,
-                  child: const Text('Agregar al bag'),
+                  child: const Text('Agregar a la bolsa'),
                 ),
               ),
             ],
@@ -766,50 +1779,93 @@ class _SelectableOptionTile extends StatelessWidget {
     required this.subtitle,
     required this.selected,
     required this.onTap,
+    this.selectedLabel,
+    this.useCheckboxIcon = false,
   });
 
   final String title;
   final String subtitle;
   final bool selected;
   final VoidCallback onTap;
+  final String? selectedLabel;
+  final bool useCheckboxIcon;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 6),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: selected ? AppColors.brandPrimary.withValues(alpha: 0.12) : AppColors.background,
+            color: selected
+                ? AppColors.brandPrimary.withValues(alpha: 0.12)
+                : AppColors.background,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: selected ? AppColors.brandPrimary : AppColors.border,
             ),
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(
-                selected ? Icons.check_circle : Icons.circle_outlined,
+                useCheckboxIcon
+                    ? (selected
+                          ? Icons.check_box_rounded
+                          : Icons.check_box_outline_blank_rounded)
+                    : (selected ? Icons.check_circle : Icons.circle_outlined),
                 color: selected ? AppColors.brandPrimary : AppColors.textMuted,
+                size: 20,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title, style: theme.textTheme.bodyLarge),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(subtitle, style: theme.textTheme.bodySmall),
                   ],
                 ),
               ),
+              if (selectedLabel != null) ...[
+                const SizedBox(width: 8),
+                _ModifierStateTag(label: selectedLabel!),
+              ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ModifierStateTag extends StatelessWidget {
+  const _ModifierStateTag({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.brandPrimary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: AppColors.brandPrimary.withValues(alpha: 0.28),
+        ),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: AppColors.brandPrimaryDark,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
