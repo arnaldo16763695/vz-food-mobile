@@ -9,6 +9,7 @@ import '../../../core/auth/auth_session.dart';
 import '../../../core/utils/app_formatters.dart';
 import '../../../core/widgets/customer_footer_nav.dart';
 import '../../../core/widgets/quantity_stepper.dart';
+import '../../bag/application/bag_count_controller.dart';
 import '../../bag/infrastructure/bag_api.dart';
 import '../../../core/theme/app_colors.dart';
 import '../application/storefront_controller.dart';
@@ -20,6 +21,7 @@ class StorefrontScreen extends StatefulWidget {
     super.key,
     required this.authSession,
     required this.bagApi,
+    required this.bagCountController,
     required this.storefrontApi,
     required this.tenantSlug,
     required this.branchId,
@@ -27,6 +29,7 @@ class StorefrontScreen extends StatefulWidget {
 
   final AuthSession authSession;
   final BagApi bagApi;
+  final BagCountController bagCountController;
   final StorefrontApi storefrontApi;
   final String tenantSlug;
   final String? branchId;
@@ -195,7 +198,9 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
         SnackBar(
           content: Text('${product.name} agregado a la bolsa de compra.'),
           duration: const Duration(seconds: 5),
@@ -209,6 +214,16 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
           ),
         ),
       );
+      widget.bagCountController.setCountForContext(
+        tenantSlug: widget.tenantSlug,
+        branchId: activeBranchId,
+        count: (widget.bagCountController.count ?? 0) + quantity,
+      );
+      Future<void>.delayed(const Duration(seconds: 5), () {
+        if (mounted) {
+          messenger.hideCurrentSnackBar();
+        }
+      });
     } catch (error) {
       _showSnackBar('No se pudo agregar el producto: $error');
     } finally {
@@ -274,6 +289,7 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
         branchId: widget.branchId,
         authSession: widget.authSession,
         bagApi: widget.bagApi,
+        bagCountController: widget.bagCountController,
       ),
       body: SafeArea(child: _buildBody()),
     );
@@ -337,7 +353,8 @@ class _StorefrontView extends StatefulWidget {
   final Future<List<StorefrontProduct>> Function({
     required String query,
     String? branchId,
-  }) onSearchProducts;
+  })
+  onSearchProducts;
   final StorefrontPayload payload;
   final String tenantSlug;
 
@@ -489,7 +506,8 @@ class _StorefrontViewState extends State<_StorefrontView> {
             children: [
               _ProductSearchField(
                 initialValue: _searchQuery,
-                onChanged: (value) => _handleSearchChanged(value, activeBranchId),
+                onChanged: (value) =>
+                    _handleSearchChanged(value, activeBranchId),
               ),
               const SizedBox(height: 16),
               if (normalizedQuery.isNotEmpty && !_isSearching) ...[
@@ -526,7 +544,8 @@ class _StorefrontViewState extends State<_StorefrontView> {
                 )
               else if (_searchError != null)
                 const _EmptyBox(
-                  message: 'No se pudo completar la busqueda. Intenta de nuevo.',
+                  message:
+                      'No se pudo completar la busqueda. Intenta de nuevo.',
                 )
               else if (visibleProducts.isEmpty)
                 const _EmptyBox(
@@ -770,11 +789,7 @@ class _StorefrontEmpty extends StatelessWidget {
 }
 
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    this.title,
-    this.subtitle,
-    required this.child,
-  });
+  const _SectionCard({this.title, this.subtitle, required this.child});
 
   final String? title;
   final String? subtitle;
@@ -1530,16 +1545,30 @@ class _ProductConfiguratorSheetState extends State<_ProductConfiguratorSheet> {
     final selections = <Map<String, dynamic>>[];
     for (final group in widget.product.modifierGroups) {
       final selectedIds = _selectedOptionsByGroup[group.id] ?? const <String>{};
-      for (final option in group.options.where(
-        (option) => selectedIds.contains(option.id),
-      )) {
-        selections.add({
-          'modifierGroupId': group.id,
-          'modifierGroupName': group.name,
-          'modifierOptionId': option.id,
-          'modifierOptionName': option.name,
-          'priceDelta': option.priceDelta,
-        });
+      for (final option in group.options) {
+        final isSelected = selectedIds.contains(option.id);
+        final wasSelectedByDefault = option.defaultSelected;
+
+        if (wasSelectedByDefault && !isSelected) {
+          selections.add({
+            'modifierGroupId': group.id,
+            'modifierGroupName': group.name,
+            'modifierOptionId': option.id,
+            'modifierOptionName': 'Sin ${option.name}',
+            'priceDelta': 0,
+          });
+          continue;
+        }
+
+        if (!wasSelectedByDefault && isSelected) {
+          selections.add({
+            'modifierGroupId': group.id,
+            'modifierGroupName': group.name,
+            'modifierOptionId': option.id,
+            'modifierOptionName': option.name,
+            'priceDelta': option.priceDelta,
+          });
+        }
       }
     }
 
@@ -1554,7 +1583,7 @@ class _ProductConfiguratorSheetState extends State<_ProductConfiguratorSheet> {
 
   String? _modifierStatusLabel(StorefrontModifierOption option, bool selected) {
     if (option.defaultSelected) {
-      return selected ? 'Incluido' : 'Excluido';
+      return selected ? null : 'Excluido';
     }
 
     if (!selected) {
@@ -1565,10 +1594,12 @@ class _ProductConfiguratorSheetState extends State<_ProductConfiguratorSheet> {
   }
 
   double get _unitPrice {
-    final selectedVariant = widget.product.variants.cast<StorefrontProductVariant?>().firstWhere(
-      (variant) => variant?.id == _selectedVariantId,
-      orElse: () => null,
-    );
+    final selectedVariant = widget.product.variants
+        .cast<StorefrontProductVariant?>()
+        .firstWhere(
+          (variant) => variant?.id == _selectedVariantId,
+          orElse: () => null,
+        );
     final baseLabel = selectedVariant?.basePrice ?? widget.product.basePrice;
     final modifiersTotal = widget.product.modifierGroups.fold<double>(0, (
       total,
@@ -1594,7 +1625,8 @@ class _ProductConfiguratorSheetState extends State<_ProductConfiguratorSheet> {
       return 0;
     }
 
-    final usesCommaAsDecimal = normalized.contains(',') && normalized.contains('.');
+    final usesCommaAsDecimal =
+        normalized.contains(',') && normalized.contains('.');
     final sanitized = usesCommaAsDecimal
         ? normalized.replaceAll(',', '')
         : normalized.replaceAll(',', '.');
@@ -1674,7 +1706,7 @@ class _ProductConfiguratorSheetState extends State<_ProductConfiguratorSheet> {
               ),
               if (product.variants.isNotEmpty) ...[
                 const SizedBox(height: 18),
-                Text('Variante', style: theme.textTheme.titleLarge),
+                Text('Tamaños', style: theme.textTheme.titleLarge),
                 const SizedBox(height: 6),
                 ...product.variants.map(
                   (variant) => _SelectableOptionTile(

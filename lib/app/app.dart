@@ -27,6 +27,7 @@ class VzFoodApp extends StatelessWidget {
         authSession: bootstrapData.authSession,
         authAccountService: bootstrapData.authAccountService,
         bagApi: bootstrapData.bagApi,
+        bagCountController: bootstrapData.bagCountController,
         customerApi: bootstrapData.customerApi,
         checkoutApi: bootstrapData.checkoutApi,
         ordersApi: bootstrapData.ordersApi,

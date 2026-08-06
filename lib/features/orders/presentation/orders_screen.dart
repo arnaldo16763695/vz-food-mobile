@@ -3,6 +3,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_session.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/app_formatters.dart';
+import '../../../core/widgets/customer_footer_nav.dart';
+import '../../../core/widgets/status_chip.dart';
+import '../../bag/application/bag_count_controller.dart';
+import '../../bag/infrastructure/bag_api.dart';
 import '../application/orders_controller.dart';
 import '../domain/orders_models.dart';
 import '../infrastructure/orders_api.dart';
@@ -11,13 +16,19 @@ class OrdersScreen extends StatefulWidget {
   const OrdersScreen({
     super.key,
     required this.authSession,
+    required this.bagApi,
+    required this.bagCountController,
     required this.ordersApi,
     required this.tenantSlug,
+    required this.branchId,
   });
 
   final AuthSession authSession;
+  final BagApi bagApi;
+  final BagCountController bagCountController;
   final OrdersApi ordersApi;
   final String tenantSlug;
+  final String? branchId;
 
   @override
   State<OrdersScreen> createState() => _OrdersScreenState();
@@ -50,6 +61,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Pedidos')),
+      bottomNavigationBar: CustomerFooterNav(
+        currentTab: CustomerFooterTab.orders,
+        tenantSlug: widget.tenantSlug,
+        branchId: widget.branchId,
+        authSession: widget.authSession,
+        bagApi: widget.bagApi,
+        bagCountController: widget.bagCountController,
+      ),
       body: SafeArea(
         child: FutureBuilder<OrdersPayload>(
           future: _future,
@@ -71,36 +90,36 @@ class _OrdersScreenState extends State<OrdersScreen> {
               padding: const EdgeInsets.all(20),
               children: [
                 Container(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
                     color: AppColors.textPrimary,
-                    borderRadius: BorderRadius.circular(28),
+                    borderRadius: BorderRadius.circular(22),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Tus pedidos',
-                        style: theme.textTheme.headlineMedium?.copyWith(
+                        style: theme.textTheme.headlineSmall?.copyWith(
                           color: Colors.white,
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                       Text(
                         'Seguimiento del historial del cliente para este tenant.',
-                        style: theme.textTheme.bodyLarge?.copyWith(
+                        style: theme.textTheme.bodyMedium?.copyWith(
                           color: Colors.white,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 ...payload.orders.map(
                   (order) => _OrderSummaryCard(
                     order: order,
                     onTap: () => context.push(
-                      '/storefront/${widget.tenantSlug}/orders/${order.id}',
+                      '/storefront/${widget.tenantSlug}/orders/${order.id}${widget.branchId == null || widget.branchId!.isEmpty ? '' : '?branchId=${widget.branchId}'}',
                     ),
                   ),
                 ),
@@ -124,29 +143,50 @@ class _OrderSummaryCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 12),
       child: InkWell(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Card(
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('#${order.orderNumber}', style: theme.textTheme.titleLarge),
-                const SizedBox(height: 8),
-                Text(order.status, style: theme.textTheme.bodyLarge),
-                const SizedBox(height: 6),
-                Text(
-                  '${order.itemCount} items · ${order.fulfillmentType}',
-                  style: theme.textTheme.bodySmall,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '#${order.orderNumber}',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      AppFormatters.currency(order.totalAmount),
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: AppColors.brandPrimaryDark,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    StatusChip(value: order.status),
+                    StatusChip(value: order.fulfillmentType),
+                  ],
+                ),
+                const SizedBox(height: 4),
                 Text(
-                  order.totalAmount.toStringAsFixed(2),
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: AppColors.brandPrimaryDark,
+                  '${order.itemCount} items · ${AppFormatters.dateTime(order.placedAt)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.textMuted,
                   ),
                 ),
               ],

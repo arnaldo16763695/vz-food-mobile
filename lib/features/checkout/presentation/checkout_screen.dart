@@ -8,6 +8,7 @@ import '../../../core/auth/auth_session.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/app_formatters.dart';
 import '../../../core/widgets/customer_footer_nav.dart';
+import '../../bag/application/bag_count_controller.dart';
 import '../../bag/infrastructure/bag_api.dart';
 import '../../customer/infrastructure/customer_api.dart';
 import '../application/checkout_controller.dart';
@@ -19,6 +20,7 @@ class CheckoutScreen extends StatefulWidget {
     super.key,
     required this.authSession,
     required this.bagApi,
+    required this.bagCountController,
     required this.customerApi,
     required this.checkoutApi,
     required this.tenantSlug,
@@ -27,6 +29,7 @@ class CheckoutScreen extends StatefulWidget {
 
   final AuthSession authSession;
   final BagApi bagApi;
+  final BagCountController bagCountController;
   final CustomerApi customerApi;
   final CheckoutApi checkoutApi;
   final String tenantSlug;
@@ -112,8 +115,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     });
   }
 
-  bool _validatePersonalStep() {
-    return _formKey.currentState!.validate();
+  String? _firstPersonalValidationError() {
+    if (_fullNameController.text.trim().isEmpty) {
+      return 'Ingresa el nombre completo';
+    }
+
+    if (_phoneController.text.trim().isEmpty) {
+      return 'Ingresa el telefono';
+    }
+
+    if (_emailController.text.trim().isEmpty) {
+      return 'Ingresa el email';
+    }
+
+    return null;
+  }
+
+  bool _validatePersonalStep({bool preferFormValidation = true}) {
+    final formState = _formKey.currentState;
+    if (preferFormValidation && formState != null) {
+      return formState.validate();
+    }
+
+    return _firstPersonalValidationError() == null;
   }
 
   void _goToPaymentStep() {
@@ -127,10 +151,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _submit(CheckoutLoadData data) async {
-    if (!_validatePersonalStep()) {
+    if (!_validatePersonalStep(preferFormValidation: false)) {
       setState(() {
         _currentStep = 0;
       });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+
+        _formKey.currentState?.validate();
+      });
+
       return;
     }
 
@@ -173,14 +206,32 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Orden creada${result.orderNumber != null ? ' #${result.orderNumber}' : ''}.',
-          ),
-        ),
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Orden creada'),
+            content: Text(
+              result.orderNumber != null
+                  ? 'Tu orden #${result.orderNumber} fue creada con exito.'
+                  : 'Tu orden fue creada con exito.',
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Ver pedidos'),
+              ),
+            ],
+          );
+        },
       );
-      context.pop();
+      if (!mounted) {
+        return;
+      }
+
+      final branchQuery = widget.branchId.isEmpty ? '' : '?branchId=${widget.branchId}';
+      context.go('/storefront/${widget.tenantSlug}/orders$branchQuery');
     } catch (error) {
       if (!mounted) {
         return;
@@ -210,6 +261,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         branchId: widget.branchId,
         authSession: widget.authSession,
         bagApi: widget.bagApi,
+        bagCountController: widget.bagCountController,
       ),
       body: SafeArea(
         child: FutureBuilder<CheckoutLoadData>(

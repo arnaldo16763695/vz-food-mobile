@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../../core/auth/auth_session.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/customer_footer_nav.dart';
+import '../../bag/application/bag_count_controller.dart';
+import '../../bag/infrastructure/bag_api.dart';
 import '../../customer/application/customer_controller.dart';
 import '../../customer/domain/customer_context.dart';
 import '../../customer/infrastructure/customer_api.dart';
@@ -11,14 +14,22 @@ class AccountScreen extends StatefulWidget {
     super.key,
     required this.authAccountService,
     required this.authSession,
+    required this.bagApi,
+    required this.bagCountController,
     required this.customerApi,
     required this.hasSupabaseConfig,
+    required this.tenantSlug,
+    required this.branchId,
   });
 
   final AuthAccountService authAccountService;
   final AuthSession authSession;
+  final BagApi bagApi;
+  final BagCountController bagCountController;
   final CustomerApi customerApi;
   final bool hasSupabaseConfig;
+  final String? tenantSlug;
+  final String? branchId;
 
   @override
   State<AccountScreen> createState() => _AccountScreenState();
@@ -98,6 +109,14 @@ class _AccountScreenState extends State<AccountScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Cuenta')),
+      bottomNavigationBar: CustomerFooterNav(
+        currentTab: CustomerFooterTab.profile,
+        tenantSlug: widget.tenantSlug,
+        branchId: widget.branchId,
+        authSession: widget.authSession,
+        bagApi: widget.bagApi,
+        bagCountController: widget.bagCountController,
+      ),
       body: SafeArea(
         child: StreamBuilder<AuthAccountState>(
           stream: widget.authAccountService.authStateChanges(),

@@ -5,6 +5,7 @@ import '../core/config/app_config.dart';
 import '../core/location/location_service.dart';
 import '../core/network/app_http_client.dart';
 import '../features/bag/infrastructure/bag_api.dart';
+import '../features/bag/application/bag_count_controller.dart';
 import '../features/checkout/infrastructure/checkout_api.dart';
 import '../features/customer/infrastructure/customer_api.dart';
 import '../features/home/infrastructure/home_api.dart';
@@ -24,6 +25,7 @@ class BootstrapData {
     required this.brandsApi,
     required this.storefrontApi,
     required this.bagApi,
+    required this.bagCountController,
     required this.customerApi,
     required this.checkoutApi,
     required this.ordersApi,
@@ -38,6 +40,7 @@ class BootstrapData {
   final BrandsApi brandsApi;
   final StorefrontApi storefrontApi;
   final BagApi bagApi;
+  final BagCountController bagCountController;
   final CustomerApi customerApi;
   final CheckoutApi checkoutApi;
   final OrdersApi ordersApi;
@@ -65,6 +68,7 @@ Future<BootstrapData> bootstrapApp() async {
   final brandsApi = BrandsApi(httpClient.dio);
   final storefrontApi = StorefrontApi(httpClient.dio);
   final bagApi = BagApi(httpClient.dio);
+  final bagCountController = BagCountController();
   final customerApi = CustomerApi(httpClient.dio);
   final checkoutApi = CheckoutApi(httpClient.dio);
   final ordersApi = OrdersApi(httpClient.dio);
@@ -79,6 +83,7 @@ Future<BootstrapData> bootstrapApp() async {
     brandsApi: brandsApi,
     storefrontApi: storefrontApi,
     bagApi: bagApi,
+    bagCountController: bagCountController,
     customerApi: customerApi,
     checkoutApi: checkoutApi,
     ordersApi: ordersApi,

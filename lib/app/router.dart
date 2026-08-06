@@ -5,6 +5,7 @@ import '../core/config/app_config.dart';
 import '../core/location/location_service.dart';
 import '../features/account/presentation/account_screen.dart';
 import '../features/bag/infrastructure/bag_api.dart';
+import '../features/bag/application/bag_count_controller.dart';
 import '../features/bag/presentation/bag_screen.dart';
 import '../features/checkout/infrastructure/checkout_api.dart';
 import '../features/checkout/presentation/checkout_screen.dart';
@@ -26,6 +27,7 @@ class AppRouter {
     required AuthAccountService authAccountService,
     required LocationService locationService,
     required BagApi bagApi,
+    required BagCountController bagCountController,
     required CheckoutApi checkoutApi,
     required CustomerApi customerApi,
     required OrdersApi ordersApi,
@@ -54,8 +56,12 @@ class AppRouter {
               builder: (context, state) => AccountScreen(
                 authAccountService: authAccountService,
                 authSession: authSession,
+                bagApi: bagApi,
+                bagCountController: bagCountController,
                 customerApi: customerApi,
                 hasSupabaseConfig: config.hasSupabaseConfig,
+                tenantSlug: state.uri.queryParameters['tenantSlug'],
+                branchId: state.uri.queryParameters['branchId'],
               ),
             ),
             GoRoute(
@@ -63,6 +69,7 @@ class AppRouter {
               builder: (context, state) => StorefrontScreen(
                 authSession: authSession,
                 bagApi: bagApi,
+                bagCountController: bagCountController,
                 storefrontApi: storefrontApi,
                 tenantSlug: state.pathParameters['tenantSlug'] ?? '',
                 branchId: state.uri.queryParameters['branchId'],
@@ -72,6 +79,7 @@ class AppRouter {
               path: '/storefront/:tenantSlug/bag',
               builder: (context, state) => BagScreen(
                 bagApi: bagApi,
+                bagCountController: bagCountController,
                 authSession: authSession,
                 tenantSlug: state.pathParameters['tenantSlug'] ?? '',
                 branchId: state.uri.queryParameters['branchId'] ?? '',
@@ -82,6 +90,7 @@ class AppRouter {
               builder: (context, state) => CheckoutScreen(
                 authSession: authSession,
                 bagApi: bagApi,
+                bagCountController: bagCountController,
                 customerApi: customerApi,
                 checkoutApi: checkoutApi,
                 tenantSlug: state.pathParameters['tenantSlug'] ?? '',
@@ -92,17 +101,23 @@ class AppRouter {
               path: '/storefront/:tenantSlug/orders',
               builder: (context, state) => OrdersScreen(
                 authSession: authSession,
+                bagApi: bagApi,
+                bagCountController: bagCountController,
                 ordersApi: ordersApi,
                 tenantSlug: state.pathParameters['tenantSlug'] ?? '',
+                branchId: state.uri.queryParameters['branchId'],
               ),
             ),
             GoRoute(
               path: '/storefront/:tenantSlug/orders/:orderId',
               builder: (context, state) => OrderDetailScreen(
                 authSession: authSession,
+                bagApi: bagApi,
+                bagCountController: bagCountController,
                 ordersApi: ordersApi,
                 tenantSlug: state.pathParameters['tenantSlug'] ?? '',
                 orderId: state.pathParameters['orderId'] ?? '',
+                branchId: state.uri.queryParameters['branchId'],
               ),
             ),
           ],

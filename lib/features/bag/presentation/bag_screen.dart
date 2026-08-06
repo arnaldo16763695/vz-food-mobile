@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -6,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/app_formatters.dart';
 import '../../../core/widgets/customer_footer_nav.dart';
 import '../../../core/widgets/quantity_stepper.dart';
+import '../application/bag_count_controller.dart';
 import '../application/bag_controller.dart';
 import '../application/bag_load_result.dart';
 import '../domain/bag_payload.dart';
@@ -15,12 +18,14 @@ class BagScreen extends StatefulWidget {
   const BagScreen({
     super.key,
     required this.bagApi,
+    required this.bagCountController,
     required this.authSession,
     required this.tenantSlug,
     required this.branchId,
   });
 
   final BagApi bagApi;
+  final BagCountController bagCountController;
   final AuthSession authSession;
   final String tenantSlug;
   final String branchId;
@@ -63,6 +68,11 @@ class _BagScreenState extends State<BagScreen> {
         _result = result;
         _loading = false;
       });
+      widget.bagCountController.setCountForContext(
+        tenantSlug: widget.tenantSlug,
+        branchId: widget.branchId,
+        count: result.payload?.items.fold<int>(0, (sum, item) => sum + item.quantity) ?? 0,
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -76,6 +86,8 @@ class _BagScreenState extends State<BagScreen> {
   }
 
   Future<void> _refreshAfterMutation() async {
+    final previousItems = _result?.payload?.items ?? const <BagItem>[];
+
     try {
       final result = await _controller.load(
         tenantSlug: widget.tenantSlug,
@@ -87,15 +99,64 @@ class _BagScreenState extends State<BagScreen> {
       }
 
       setState(() {
-        _result = result;
+        _result = BagLoadResult(
+          status: result.status,
+          payload: result.payload?.copyWith(
+            items: _preserveVisualOrder(previousItems, result.payload?.items),
+          ),
+        );
       });
+      widget.bagCountController.setCountForContext(
+        tenantSlug: widget.tenantSlug,
+        branchId: widget.branchId,
+        count: _result?.payload?.items.fold<int>(0, (sum, item) => sum + item.quantity) ?? 0,
+      );
     } catch (_) {
       // Keep the optimistic state if background refresh fails.
     }
   }
 
+  List<BagItem> _preserveVisualOrder(
+    List<BagItem> previousItems,
+    List<BagItem>? refreshedItems,
+  ) {
+    if (refreshedItems == null || refreshedItems.isEmpty) {
+      return refreshedItems ?? const <BagItem>[];
+    }
+
+    final refreshedById = {
+      for (final item in refreshedItems) item.id: item,
+    };
+    final ordered = <BagItem>[];
+
+    for (final item in previousItems) {
+      final refreshed = refreshedById.remove(item.id);
+      if (refreshed != null) {
+        ordered.add(refreshed);
+      }
+    }
+
+    ordered.addAll(refreshedById.values);
+    return ordered;
+  }
+
   void _retry() {
     _load();
+  }
+
+  BagItem? _currentItemById(String itemId) {
+    final items = _result?.payload?.items;
+    if (items == null) {
+      return null;
+    }
+
+    for (final item in items) {
+      if (item.id == itemId) {
+        return item;
+      }
+    }
+
+    return null;
   }
 
   Future<void> _incrementItem(BagItem item) async {
@@ -113,15 +174,16 @@ class _BagScreenState extends State<BagScreen> {
         );
       },
       action: (accessToken) {
+        final currentItem = _currentItemById(item.id) ?? item;
         return widget.bagApi.replaceItem(
           tenantSlug: widget.tenantSlug,
           bagItemId: item.id,
           accessToken: accessToken,
           branchId: widget.branchId,
           productId: item.productId,
-          quantity: item.quantity + 1,
-          productVariantId: item.productVariantId,
-          modifierSelections: item.modifierSelections
+          quantity: currentItem.quantity,
+          productVariantId: currentItem.productVariantId,
+          modifierSelections: currentItem.modifierSelections
               .map((selection) => selection.toRequestJson())
               .toList(growable: false),
         );
@@ -210,6 +272,11 @@ class _BagScreenState extends State<BagScreen> {
         payload: optimisticUpdate(currentPayload),
       );
     });
+    widget.bagCountController.setCountForContext(
+      tenantSlug: widget.tenantSlug,
+      branchId: widget.branchId,
+      count: _result?.payload?.items.fold<int>(0, (sum, item) => sum + item.quantity) ?? 0,
+    );
 
     try {
       await action(accessToken);
@@ -217,7 +284,10 @@ class _BagScreenState extends State<BagScreen> {
         return;
       }
 
-      await _refreshAfterMutation();
+      setState(() {
+        _mutatingItemId = null;
+      });
+      unawaited(_refreshAfterMutation());
     } catch (error) {
       if (!mounted) {
         return;
@@ -229,6 +299,11 @@ class _BagScreenState extends State<BagScreen> {
           payload: previousPayload,
         );
       });
+      widget.bagCountController.setCountForContext(
+        tenantSlug: widget.tenantSlug,
+        branchId: widget.branchId,
+        count: previousPayload.items.fold<int>(0, (sum, item) => sum + item.quantity),
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -236,7 +311,7 @@ class _BagScreenState extends State<BagScreen> {
         ),
       );
     } finally {
-      if (mounted) {
+      if (mounted && _mutatingItemId == itemId) {
         setState(() {
           _mutatingItemId = null;
         });
@@ -256,6 +331,7 @@ class _BagScreenState extends State<BagScreen> {
         branchId: widget.branchId,
         authSession: widget.authSession,
         bagApi: widget.bagApi,
+        bagCountController: widget.bagCountController,
       ),
       bottomSheet: payload == null || payload.isEmpty
           ? null
@@ -537,8 +613,8 @@ class _BagItemCard extends StatelessWidget {
                 children: [
                   QuantityStepper(
                     quantity: item.quantity,
-                    onDecrement: isMutating ? null : onDecrement,
-                    onIncrement: isMutating ? null : onIncrement,
+                    onDecrement: onDecrement,
+                    onIncrement: onIncrement,
                   ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -563,7 +639,7 @@ class _BagItemCard extends StatelessWidget {
                       ),
                       TextButton(
                         onPressed: isMutating ? null : onRemove,
-                        child: Text(isMutating ? 'Sincronizando...' : 'Eliminar'),
+                        child: const Text('Eliminar'),
                       ),
                     ],
                   ),
@@ -606,7 +682,13 @@ class _BagModifierChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAdded = selection.priceDelta > 0;
-    final label = isAdded ? 'Agregado' : 'Excluido';
+    final optionLabel = selection.modifierOptionName.trim();
+    final normalizedOptionLabel = optionLabel.toLowerCase();
+    final label = isAdded
+        ? 'Agregado: $optionLabel'
+        : normalizedOptionLabel.startsWith('sin ')
+            ? optionLabel
+            : 'Excluido: $optionLabel';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -620,7 +702,7 @@ class _BagModifierChip extends StatelessWidget {
         ),
       ),
       child: Text(
-        '$label: ${selection.modifierOptionName}',
+        label,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
           color: isAdded ? AppColors.brandPrimaryDark : AppColors.textPrimary,
           fontWeight: FontWeight.w600,

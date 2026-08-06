@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../auth/auth_session.dart';
 import '../theme/app_colors.dart';
+import '../../features/bag/application/bag_count_controller.dart';
 import '../../features/bag/infrastructure/bag_api.dart';
 
 enum CustomerFooterTab {
@@ -20,6 +21,7 @@ class CustomerFooterNav extends StatefulWidget {
     this.branchId,
     this.authSession,
     this.bagApi,
+    this.bagCountController,
   });
 
   final CustomerFooterTab currentTab;
@@ -27,14 +29,13 @@ class CustomerFooterNav extends StatefulWidget {
   final String? branchId;
   final AuthSession? authSession;
   final BagApi? bagApi;
+  final BagCountController? bagCountController;
 
   @override
   State<CustomerFooterNav> createState() => _CustomerFooterNavState();
 }
 
 class _CustomerFooterNavState extends State<CustomerFooterNav> {
-  int? _bagCount;
-
   @override
   void initState() {
     super.initState();
@@ -47,60 +48,19 @@ class _CustomerFooterNavState extends State<CustomerFooterNav> {
     if (oldWidget.tenantSlug != widget.tenantSlug ||
         oldWidget.branchId != widget.branchId ||
         oldWidget.authSession != widget.authSession ||
-        oldWidget.bagApi != widget.bagApi) {
+        oldWidget.bagApi != widget.bagApi ||
+        oldWidget.bagCountController != widget.bagCountController) {
       _loadBagCount();
     }
   }
 
   Future<void> _loadBagCount() async {
-    final tenantSlug = widget.tenantSlug;
-    final branchId = widget.branchId;
-    final authSession = widget.authSession;
-    final bagApi = widget.bagApi;
-
-    if (tenantSlug == null ||
-        tenantSlug.isEmpty ||
-        branchId == null ||
-        branchId.isEmpty ||
-        authSession == null ||
-        bagApi == null) {
-      if (mounted) {
-        setState(() {
-          _bagCount = null;
-        });
-      }
-      return;
-    }
-
-    try {
-      final accessToken = await authSession.getAccessToken();
-      if (accessToken == null || accessToken.isEmpty) {
-        if (mounted) {
-          setState(() {
-            _bagCount = null;
-          });
-        }
-        return;
-      }
-
-      final bag = await bagApi.fetchBag(
-        tenantSlug: tenantSlug,
-        branchId: branchId,
-        accessToken: accessToken,
-      );
-
-      if (mounted) {
-        setState(() {
-          _bagCount = bag.items.fold<int>(0, (sum, item) => sum + item.quantity);
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _bagCount = null;
-        });
-      }
-    }
+    await widget.bagCountController?.ensureLoaded(
+      tenantSlug: widget.tenantSlug,
+      branchId: widget.branchId,
+      authSession: widget.authSession,
+      bagApi: widget.bagApi,
+    );
   }
 
   void _navigate(CustomerFooterTab tab) {
@@ -137,6 +97,19 @@ class _CustomerFooterNavState extends State<CustomerFooterNav> {
 
   @override
   Widget build(BuildContext context) {
+    final bagCountController = widget.bagCountController;
+
+    if (bagCountController == null) {
+      return _buildNav(null);
+    }
+
+    return AnimatedBuilder(
+      animation: bagCountController,
+      builder: (context, _) => _buildNav(bagCountController.count),
+    );
+  }
+
+  Widget _buildNav(int? bagCount) {
     return SafeArea(
       top: false,
       child: Container(
@@ -181,7 +154,7 @@ class _CustomerFooterNavState extends State<CustomerFooterNav> {
               label: 'Bolsa',
               isActive: widget.currentTab == CustomerFooterTab.bag,
               isEnabled: (widget.tenantSlug ?? '').isNotEmpty && (widget.branchId ?? '').isNotEmpty,
-              badgeCount: _bagCount,
+              badgeCount: bagCount,
               onTap: () => _navigate(CustomerFooterTab.bag),
             ),
           ],
