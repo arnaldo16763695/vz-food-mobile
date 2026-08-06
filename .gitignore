@@ -46,3 +46,7 @@ app.*.map.json
 
 # Local environment configuration
 .env
+
+# Local agent tooling
+.agents/
+skills-lock.json
