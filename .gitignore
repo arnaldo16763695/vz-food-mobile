@@ -50,3 +50,4 @@ app.*.map.json
 # Local agent tooling
 .agents/
 skills-lock.json
+.claude/skills/
