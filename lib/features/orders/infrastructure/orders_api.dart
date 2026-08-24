@@ -67,4 +67,39 @@ class OrdersApi {
       message: 'Expected order detail endpoint to return a JSON object.',
     );
   }
+
+  Future<bool> uploadPaymentProof({
+    required String tenantSlug,
+    required String orderId,
+    required String accessToken,
+    required String paymentMethod,
+    required String filePath,
+  }) async {
+    final formData = FormData.fromMap({
+      'paymentMethod': paymentMethod,
+      'paymentProof': await MultipartFile.fromFile(filePath),
+    });
+
+    final response = await _dio.post<Object?>(
+      '/api/mobile/storefront/$tenantSlug/orders/$orderId/payment-proof',
+      data: formData,
+      options: _authOptions(accessToken),
+    );
+    final data = response.data;
+
+    if (data is Map<String, dynamic>) {
+      return data['ok'] as bool? ?? false;
+    }
+
+    if (data is Map) {
+      return Map<String, dynamic>.from(data)['ok'] as bool? ?? false;
+    }
+
+    throw DioException(
+      requestOptions: response.requestOptions,
+      response: response,
+      type: DioExceptionType.badResponse,
+      message: 'Expected payment-proof endpoint to return a JSON object.',
+    );
+  }
 }

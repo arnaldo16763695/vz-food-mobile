@@ -85,6 +85,7 @@ class OrderDetail {
     required this.customerPhone,
     required this.customerEmail,
     required this.notes,
+    required this.paymentReceiptSubmissions,
     required this.items,
   });
 
@@ -103,6 +104,7 @@ class OrderDetail {
   final String? customerPhone;
   final String? customerEmail;
   final String? notes;
+  final List<PaymentReceiptSubmission> paymentReceiptSubmissions;
   final List<OrderDetailItem> items;
 
   factory OrderDetail.fromJson(Map<String, dynamic> json) {
@@ -124,6 +126,15 @@ class OrderDetail {
       customerPhone: json['customerPhone'] as String?,
       customerEmail: json['customerEmail'] as String?,
       notes: json['notes'] as String?,
+      paymentReceiptSubmissions: (json['paymentReceiptSubmissions'] as List?)
+              ?.whereType<Map>()
+              .map(
+                (item) => PaymentReceiptSubmission.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .toList(growable: false) ??
+          const [],
       items: rawItems is List
           ? rawItems
               .whereType<Map>()
@@ -132,6 +143,41 @@ class OrderDetail {
               )
               .toList(growable: false)
           : const [],
+    );
+  }
+}
+
+class PaymentReceiptSubmission {
+  const PaymentReceiptSubmission({
+    required this.id,
+    required this.paymentMethod,
+    required this.receiptImagePath,
+    required this.reviewStatus,
+    required this.rejectionReason,
+    required this.submittedAt,
+    required this.reviewedAt,
+    required this.reviewedByName,
+  });
+
+  final String id;
+  final String paymentMethod;
+  final String receiptImagePath;
+  final String reviewStatus;
+  final String? rejectionReason;
+  final DateTime? submittedAt;
+  final DateTime? reviewedAt;
+  final String? reviewedByName;
+
+  factory PaymentReceiptSubmission.fromJson(Map<String, dynamic> json) {
+    return PaymentReceiptSubmission(
+      id: json['id'] as String? ?? '',
+      paymentMethod: json['paymentMethod'] as String? ?? '',
+      receiptImagePath: json['receiptImagePath'] as String? ?? '',
+      reviewStatus: json['reviewStatus'] as String? ?? '',
+      rejectionReason: json['rejectionReason'] as String?,
+      submittedAt: DateTime.tryParse(json['submittedAt'] as String? ?? ''),
+      reviewedAt: DateTime.tryParse(json['reviewedAt'] as String? ?? ''),
+      reviewedByName: json['reviewedByName'] as String?,
     );
   }
 }

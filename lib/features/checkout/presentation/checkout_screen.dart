@@ -11,6 +11,8 @@ import '../../../core/widgets/customer_footer_nav.dart';
 import '../../bag/application/bag_count_controller.dart';
 import '../../bag/infrastructure/bag_api.dart';
 import '../../customer/infrastructure/customer_api.dart';
+import '../../storefront/domain/storefront_payload.dart';
+import '../../storefront/infrastructure/storefront_api.dart';
 import '../application/checkout_controller.dart';
 import '../domain/checkout_models.dart';
 import '../infrastructure/checkout_api.dart';
@@ -23,6 +25,7 @@ class CheckoutScreen extends StatefulWidget {
     required this.bagCountController,
     required this.customerApi,
     required this.checkoutApi,
+    required this.storefrontApi,
     required this.tenantSlug,
     required this.branchId,
   });
@@ -32,6 +35,7 @@ class CheckoutScreen extends StatefulWidget {
   final BagCountController bagCountController;
   final CustomerApi customerApi;
   final CheckoutApi checkoutApi;
+  final StorefrontApi storefrontApi;
   final String tenantSlug;
   final String branchId;
 
@@ -64,6 +68,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       widget.bagApi,
       widget.customerApi,
       widget.checkoutApi,
+      widget.storefrontApi,
     );
     _future = _load();
   }
@@ -151,6 +156,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _submit(CheckoutLoadData data) async {
+    final branch = data.branch;
+    if (branch != null && !branch.acceptingOrders) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            branch.closureLabel?.trim().isNotEmpty == true
+                ? branch.closureLabel!
+                : 'Esta sucursal no esta aceptando pedidos ahora mismo.',
+          ),
+        ),
+      );
+      return;
+    }
+
     if (!_validatePersonalStep(preferFormValidation: false)) {
       setState(() {
         _currentStep = 0;
@@ -291,6 +310,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               0,
               (sum, item) => sum + (item.unitPrice * item.quantity),
             );
+            final activeBranch = data.branch;
 
             _prefillIfNeeded(data);
 
@@ -325,6 +345,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 const SizedBox(height: 20),
                 _CheckoutStepHeader(currentStep: _currentStep),
                 const SizedBox(height: 16),
+                if (activeBranch != null && !activeBranch.acceptingOrders) ...[
+                  _BranchOrderingClosedCard(branch: activeBranch),
+                  const SizedBox(height: 16),
+                ],
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(20),
@@ -381,6 +405,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           paymentSettings: data.paymentSettings,
                           totalItems: totalItems,
                           totalAmount: totalAmount,
+                          branch: activeBranch,
                           paymentProofPath: _paymentProofPath,
                           submitting: _submitting,
                           onBack: () {
@@ -581,6 +606,7 @@ class _CheckoutPaymentStep extends StatelessWidget {
     super.key,
     required this.paymentMethod,
     required this.paymentSettings,
+    required this.branch,
     required this.totalItems,
     required this.totalAmount,
     required this.paymentProofPath,
@@ -593,6 +619,7 @@ class _CheckoutPaymentStep extends StatelessWidget {
 
   final CheckoutPaymentMethod paymentMethod;
   final CheckoutPaymentSettings paymentSettings;
+  final StorefrontBranch? branch;
   final int totalItems;
   final double totalAmount;
   final String? paymentProofPath;
@@ -618,6 +645,7 @@ class _CheckoutPaymentStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final canCheckout = branch?.acceptingOrders ?? true;
 
     return Card(
       key: key,
@@ -735,7 +763,7 @@ class _CheckoutPaymentStep extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: submitting ? null : onSubmit,
+                    onPressed: !canCheckout || submitting ? null : onSubmit,
                     child: Text(submitting ? 'Enviando...' : 'Crear orden'),
                   ),
                 ),
@@ -743,6 +771,50 @@ class _CheckoutPaymentStep extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _BranchOrderingClosedCard extends StatelessWidget {
+  const _BranchOrderingClosedCard({required this.branch});
+
+  final StorefrontBranch branch;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4E5),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFFFC107)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            branch.closureLabel?.trim().isNotEmpty == true
+                ? branch.closureLabel!
+                : 'Esta sucursal no esta aceptando pedidos ahora mismo.',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF8A5300),
+            ),
+          ),
+          if (branch.nextTransitionLabel?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 8),
+            Text(
+              branch.nextTransitionLabel!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: const Color(0xFF8A5300),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

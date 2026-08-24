@@ -13,6 +13,8 @@ import '../application/bag_controller.dart';
 import '../application/bag_load_result.dart';
 import '../domain/bag_payload.dart';
 import '../infrastructure/bag_api.dart';
+import '../../storefront/domain/storefront_payload.dart';
+import '../../storefront/infrastructure/storefront_api.dart';
 
 class BagScreen extends StatefulWidget {
   const BagScreen({
@@ -20,6 +22,7 @@ class BagScreen extends StatefulWidget {
     required this.bagApi,
     required this.bagCountController,
     required this.authSession,
+    required this.storefrontApi,
     required this.tenantSlug,
     required this.branchId,
   });
@@ -27,6 +30,7 @@ class BagScreen extends StatefulWidget {
   final BagApi bagApi;
   final BagCountController bagCountController;
   final AuthSession authSession;
+  final StorefrontApi storefrontApi;
   final String tenantSlug;
   final String branchId;
 
@@ -37,6 +41,7 @@ class BagScreen extends StatefulWidget {
 class _BagScreenState extends State<BagScreen> {
   late final BagController _controller;
   BagLoadResult? _result;
+  StorefrontBranch? _branch;
   Object? _loadError;
   bool _loading = true;
   String? _mutatingItemId;
@@ -55,10 +60,18 @@ class _BagScreenState extends State<BagScreen> {
     });
 
     try {
-      final result = await _controller.load(
-        tenantSlug: widget.tenantSlug,
-        branchId: widget.branchId,
-      );
+      final results = await Future.wait<Object>([
+        _controller.load(
+          tenantSlug: widget.tenantSlug,
+          branchId: widget.branchId,
+        ),
+        widget.storefrontApi.fetchStorefront(
+          tenantSlug: widget.tenantSlug,
+          branchId: widget.branchId,
+        ),
+      ]);
+      final result = results[0] as BagLoadResult;
+      final storefront = results[1] as StorefrontPayload;
 
       if (!mounted) {
         return;
@@ -66,6 +79,7 @@ class _BagScreenState extends State<BagScreen> {
 
       setState(() {
         _result = result;
+        _branch = storefront.storefront.activeBranch;
         _loading = false;
       });
       widget.bagCountController.setCountForContext(
@@ -89,10 +103,18 @@ class _BagScreenState extends State<BagScreen> {
     final previousItems = _result?.payload?.items ?? const <BagItem>[];
 
     try {
-      final result = await _controller.load(
-        tenantSlug: widget.tenantSlug,
-        branchId: widget.branchId,
-      );
+      final results = await Future.wait<Object>([
+        _controller.load(
+          tenantSlug: widget.tenantSlug,
+          branchId: widget.branchId,
+        ),
+        widget.storefrontApi.fetchStorefront(
+          tenantSlug: widget.tenantSlug,
+          branchId: widget.branchId,
+        ),
+      ]);
+      final result = results[0] as BagLoadResult;
+      final storefront = results[1] as StorefrontPayload;
 
       if (!mounted) {
         return;
@@ -105,6 +127,7 @@ class _BagScreenState extends State<BagScreen> {
             items: _preserveVisualOrder(previousItems, result.payload?.items),
           ),
         );
+        _branch = storefront.storefront.activeBranch;
       });
       widget.bagCountController.setCountForContext(
         tenantSlug: widget.tenantSlug,
@@ -247,6 +270,22 @@ class _BagScreenState extends State<BagScreen> {
     required BagPayload Function(BagPayload payload) optimisticUpdate,
     required Future<void> Function(String accessToken) action,
   }) async {
+    final branch = _branch;
+    if (branch != null && !branch.acceptingOrders) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              branch.closureLabel?.trim().isNotEmpty == true
+                  ? branch.closureLabel!
+                  : 'Esta sucursal no esta aceptando pedidos ahora mismo.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     final accessToken = await widget.authSession.getAccessToken();
     if (accessToken == null || accessToken.isEmpty) {
       if (mounted) {
@@ -335,7 +374,7 @@ class _BagScreenState extends State<BagScreen> {
       ),
       bottomSheet: payload == null || payload.isEmpty
           ? null
-          : _CheckoutBottomBar(payload: payload),
+          : _CheckoutBottomBar(payload: payload, branch: _branch),
       body: SafeArea(
         child: Padding(
           padding: EdgeInsets.only(
@@ -373,11 +412,12 @@ class _BagScreenState extends State<BagScreen> {
       return const _BagEmpty();
     }
 
-    return _BagView(
-      payload: payload,
-      mutatingItemId: _mutatingItemId,
-      onDecrement: _decrementItem,
-      onIncrement: _incrementItem,
+      return _BagView(
+        payload: payload,
+        branch: _branch,
+        mutatingItemId: _mutatingItemId,
+        onDecrement: _decrementItem,
+        onIncrement: _incrementItem,
       onRemove: _removeItem,
     );
   }
@@ -386,6 +426,7 @@ class _BagScreenState extends State<BagScreen> {
 class _BagView extends StatelessWidget {
   const _BagView({
     required this.payload,
+    required this.branch,
     required this.mutatingItemId,
     required this.onDecrement,
     required this.onIncrement,
@@ -393,6 +434,7 @@ class _BagView extends StatelessWidget {
   });
 
   final BagPayload payload;
+  final StorefrontBranch? branch;
   final String? mutatingItemId;
   final Future<void> Function(BagItem item) onDecrement;
   final Future<void> Function(BagItem item) onIncrement;
@@ -401,6 +443,7 @@ class _BagView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final canOrder = branch?.acceptingOrders ?? true;
 
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -420,6 +463,10 @@ class _BagView extends StatelessWidget {
                 'La cantidad cambia al instante para que el cliente sienta una interaccion mas fluida mientras la red se sincroniza en segundo plano.',
                 style: theme.textTheme.bodyMedium,
               ),
+              if (!canOrder) ...[
+                const SizedBox(height: 12),
+                _BranchOrderingClosedBanner(branch: branch!),
+              ],
             ],
           ),
         ),
@@ -427,6 +474,7 @@ class _BagView extends StatelessWidget {
         ...payload.items.map(
           (item) => _BagItemCard(
             item: item,
+            canEdit: canOrder,
             isMutating: mutatingItemId == item.id,
             onDecrement: () => onDecrement(item),
             onIncrement: () => onIncrement(item),
@@ -439,12 +487,15 @@ class _BagView extends StatelessWidget {
 }
 
 class _CheckoutBottomBar extends StatelessWidget {
-  const _CheckoutBottomBar({required this.payload});
+  const _CheckoutBottomBar({required this.payload, required this.branch});
 
   final BagPayload payload;
+  final StorefrontBranch? branch;
 
   @override
   Widget build(BuildContext context) {
+    final canCheckout = branch?.acceptingOrders ?? true;
+
     return SafeArea(
       top: false,
       child: Container(
@@ -463,10 +514,14 @@ class _CheckoutBottomBar extends StatelessWidget {
         child: SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: () => context.push(
-              '/storefront/${payload.items.first.tenantSlug}/checkout?branchId=${payload.items.first.branchId}',
+            onPressed: !canCheckout
+                ? null
+                : () => context.push(
+                    '/storefront/${payload.items.first.tenantSlug}/checkout?branchId=${payload.items.first.branchId}',
+                  ),
+            child: Text(
+              canCheckout ? 'Ir a checkout' : 'Sucursal cerrada',
             ),
-            child: const Text('Ir a checkout'),
           ),
         ),
       ),
@@ -577,6 +632,7 @@ class _BagError extends StatelessWidget {
 class _BagItemCard extends StatelessWidget {
   const _BagItemCard({
     required this.item,
+    required this.canEdit,
     required this.isMutating,
     required this.onDecrement,
     required this.onIncrement,
@@ -584,6 +640,7 @@ class _BagItemCard extends StatelessWidget {
   });
 
   final BagItem item;
+  final bool canEdit;
   final bool isMutating;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
@@ -613,8 +670,8 @@ class _BagItemCard extends StatelessWidget {
                 children: [
                   QuantityStepper(
                     quantity: item.quantity,
-                    onDecrement: onDecrement,
-                    onIncrement: onIncrement,
+                    onDecrement: canEdit ? onDecrement : null,
+                    onIncrement: canEdit ? onIncrement : null,
                   ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -638,7 +695,7 @@ class _BagItemCard extends StatelessWidget {
                         ),
                       ),
                       TextButton(
-                        onPressed: isMutating ? null : onRemove,
+                        onPressed: !canEdit || isMutating ? null : onRemove,
                         child: const Text('Eliminar'),
                       ),
                     ],
@@ -669,6 +726,50 @@ class _BagItemCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _BranchOrderingClosedBanner extends StatelessWidget {
+  const _BranchOrderingClosedBanner({required this.branch});
+
+  final StorefrontBranch branch;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4E5),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFFFC107)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            branch.closureLabel?.trim().isNotEmpty == true
+                ? branch.closureLabel!
+                : 'Esta sucursal no esta aceptando pedidos ahora mismo.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: const Color(0xFF8A5300),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (branch.nextTransitionLabel?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 6),
+            Text(
+              branch.nextTransitionLabel!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: const Color(0xFF8A5300),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

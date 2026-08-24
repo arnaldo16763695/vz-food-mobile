@@ -35,4 +35,20 @@ class OrdersController {
       accessToken: accessToken,
     );
   }
+
+  Future<bool> uploadPaymentProof({
+    required String tenantSlug,
+    required String orderId,
+    required String paymentMethod,
+    required String filePath,
+  }) async {
+    final accessToken = await _requireAccessToken();
+    return _ordersApi.uploadPaymentProof(
+      tenantSlug: tenantSlug,
+      orderId: orderId,
+      accessToken: accessToken,
+      paymentMethod: paymentMethod,
+      filePath: filePath,
+    );
+  }
 }

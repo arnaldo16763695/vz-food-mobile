@@ -3,6 +3,10 @@ class BagPayload {
 
   final List<BagItem> items;
 
+  BagPayload copyWith({List<BagItem>? items}) {
+    return BagPayload(items: items ?? this.items);
+  }
+
   factory BagPayload.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'];
     if (rawItems is! List) {
@@ -50,6 +54,24 @@ class BagItem {
   final String unitPriceLabel;
   final int quantity;
   final List<BagModifierSelection> modifierSelections;
+
+  BagItem copyWith({int? quantity}) {
+    return BagItem(
+      id: id,
+      productId: productId,
+      productVariantId: productVariantId,
+      variantName: variantName,
+      tenantSlug: tenantSlug,
+      branchId: branchId,
+      name: name,
+      description: description,
+      category: category,
+      unitPrice: unitPrice,
+      unitPriceLabel: unitPriceLabel,
+      quantity: quantity ?? this.quantity,
+      modifierSelections: modifierSelections,
+    );
+  }
 
   factory BagItem.fromJson(Map<String, dynamic> json) {
     return BagItem(

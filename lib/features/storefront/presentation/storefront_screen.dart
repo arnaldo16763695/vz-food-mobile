@@ -129,8 +129,18 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
 
   Future<void> _addProduct(StorefrontProduct product) async {
     final activeBranchId = widget.branchId;
+    final activeBranch = _payload?.storefront.activeBranch;
     if (activeBranchId == null || activeBranchId.isEmpty) {
       _showSnackBar('Selecciona una sucursal antes de agregar productos.');
+      return;
+    }
+
+    if (activeBranch != null && !activeBranch.acceptingOrders) {
+      _showSnackBar(
+        activeBranch.closureLabel?.trim().isNotEmpty == true
+            ? activeBranch.closureLabel!
+            : 'Esta sucursal no esta aceptando pedidos ahora mismo.',
+      );
       return;
     }
 
@@ -163,8 +173,18 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
     int quantity = 1,
   }) async {
     final activeBranchId = widget.branchId;
+    final activeBranch = _payload?.storefront.activeBranch;
     if (activeBranchId == null || activeBranchId.isEmpty) {
       _showSnackBar('Selecciona una sucursal antes de agregar productos.');
+      return;
+    }
+
+    if (activeBranch != null && !activeBranch.acceptingOrders) {
+      _showSnackBar(
+        activeBranch.closureLabel?.trim().isNotEmpty == true
+            ? activeBranch.closureLabel!
+            : 'Esta sucursal no esta aceptando pedidos ahora mismo.',
+      );
       return;
     }
 
@@ -204,14 +224,6 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
         SnackBar(
           content: Text('${product.name} agregado a la bolsa de compra.'),
           duration: const Duration(seconds: 5),
-          action: SnackBarAction(
-            label: 'Ver bolsa',
-            onPressed: () {
-              context.push(
-                '/storefront/${widget.tenantSlug}/bag?branchId=$activeBranchId',
-              );
-            },
-          ),
         ),
       );
       widget.bagCountController.setCountForContext(
@@ -454,6 +466,7 @@ class _StorefrontViewState extends State<_StorefrontView> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final storefront = widget.payload.storefront;
+    final activeBranch = storefront.activeBranch;
     final activeBranchId = storefront.activeBranch?.id;
     final hasMultipleBranches = storefront.branches.length > 1;
     final normalizedQuery = _searchQuery.trim().toLowerCase();
@@ -470,6 +483,10 @@ class _StorefrontViewState extends State<_StorefrontView> {
       children: [
         _StorefrontHero(storefront: storefront),
         const SizedBox(height: 20),
+        if (activeBranch != null && !activeBranch.acceptingOrders) ...[
+          _BranchOrderingClosedCallout(branch: activeBranch),
+          const SizedBox(height: 16),
+        ],
         if (storefront.hasMenu)
           Padding(
             padding: const EdgeInsets.only(bottom: 16),
@@ -555,6 +572,7 @@ class _StorefrontViewState extends State<_StorefrontView> {
                 _TwoColumnProductGrid(
                   products: visibleProducts,
                   addingProductId: widget.addingProductId,
+                  canAddToBag: activeBranch?.acceptingOrders ?? false,
                   onAddProduct: widget.onAddProduct,
                 ),
             ],
@@ -1050,11 +1068,13 @@ class _TwoColumnProductGrid extends StatelessWidget {
   const _TwoColumnProductGrid({
     required this.products,
     required this.addingProductId,
+    this.canAddToBag = true,
     required this.onAddProduct,
   });
 
   final List<StorefrontProduct> products;
   final String? addingProductId;
+  final bool canAddToBag;
   final Future<void> Function(StorefrontProduct product) onAddProduct;
 
   @override
@@ -1077,6 +1097,7 @@ class _TwoColumnProductGrid extends StatelessWidget {
                 child: _ProductTile(
                   product: leftProduct,
                   isAdding: addingProductId == leftProduct.id,
+                  canAddToBag: canAddToBag,
                   onAdd: () => onAddProduct(leftProduct),
                 ),
               ),
@@ -1087,6 +1108,7 @@ class _TwoColumnProductGrid extends StatelessWidget {
                     : _ProductTile(
                         product: rightProduct,
                         isAdding: addingProductId == rightProduct.id,
+                        canAddToBag: canAddToBag,
                         onAdd: () => onAddProduct(rightProduct),
                       ),
               ),
@@ -1160,11 +1182,13 @@ class _ProductTile extends StatelessWidget {
   const _ProductTile({
     required this.product,
     required this.isAdding,
+    required this.canAddToBag,
     required this.onAdd,
   });
 
   final StorefrontProduct product;
   final bool isAdding;
+  final bool canAddToBag;
   final VoidCallback onAdd;
 
   @override
@@ -1307,7 +1331,7 @@ class _ProductTile extends StatelessWidget {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.tonal(
-                        onPressed: isAdding ? null : onAdd,
+                        onPressed: !canAddToBag || isAdding ? null : onAdd,
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.brandPrimary.withValues(
                             alpha: 0.14,
@@ -1332,7 +1356,11 @@ class _ProductTile extends StatelessWidget {
                               size: 18,
                             ),
                             const SizedBox(width: 6),
-                            Text(isAdding ? 'Agregando' : 'Agregar'),
+                            Text(
+                              !canAddToBag
+                                  ? 'Sucursal cerrada'
+                                  : (isAdding ? 'Agregando' : 'Agregar'),
+                            ),
                           ],
                         ),
                       ),
@@ -1343,6 +1371,50 @@ class _ProductTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _BranchOrderingClosedCallout extends StatelessWidget {
+  const _BranchOrderingClosedCallout({required this.branch});
+
+  final StorefrontBranch branch;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4E5),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFFFC107)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            branch.closureLabel?.trim().isNotEmpty == true
+                ? branch.closureLabel!
+                : 'Esta sucursal no esta aceptando pedidos ahora mismo.',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: const Color(0xFF8A5300),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (branch.nextTransitionLabel?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 8),
+            Text(
+              branch.nextTransitionLabel!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: const Color(0xFF8A5300),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

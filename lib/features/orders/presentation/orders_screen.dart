@@ -55,6 +55,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
     });
   }
 
+  Future<void> _refresh() async {
+    final future = _load();
+    setState(() {
+      _future = future;
+    });
+    await future;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -86,44 +94,48 @@ class _OrdersScreenState extends State<OrdersScreen> {
               return const _OrdersEmpty();
             }
 
-            return ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: AppColors.textPrimary,
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Tus pedidos',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          color: Colors.white,
+            return RefreshIndicator(
+              onRefresh: _refresh,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: AppColors.textPrimary,
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Tus pedidos',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Seguimiento del historial del cliente para este tenant.',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: Colors.white,
+                        const SizedBox(height: 8),
+                        Text(
+                          'Seguimiento del historial del cliente para este tenant.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ...payload.orders.map(
-                  (order) => _OrderSummaryCard(
-                    order: order,
-                    onTap: () => context.push(
-                      '/storefront/${widget.tenantSlug}/orders/${order.id}${widget.branchId == null || widget.branchId!.isEmpty ? '' : '?branchId=${widget.branchId}'}',
+                      ],
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  ...payload.orders.map(
+                    (order) => _OrderSummaryCard(
+                      order: order,
+                      onTap: () => context.push(
+                        '/storefront/${widget.tenantSlug}/orders/${order.id}${widget.branchId == null || widget.branchId!.isEmpty ? '' : '?branchId=${widget.branchId}'}',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             );
           },
         ),

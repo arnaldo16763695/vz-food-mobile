@@ -123,17 +123,39 @@ class StorefrontBranch {
     required this.id,
     required this.name,
     required this.heroImageUrl,
+    required this.isOpenNow,
+    required this.acceptingOrders,
+    required this.orderingMode,
+    required this.closureLabel,
+    required this.nextTransitionAt,
+    required this.nextTransitionLabel,
   });
 
   final String id;
   final String name;
   final String? heroImageUrl;
+  final bool isOpenNow;
+  final bool acceptingOrders;
+  final String orderingMode;
+  final String? closureLabel;
+  final DateTime? nextTransitionAt;
+  final String? nextTransitionLabel;
+
+  bool get isClosedForOrdering => !acceptingOrders;
 
   factory StorefrontBranch.fromJson(Map<String, dynamic> json) {
     return StorefrontBranch(
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
       heroImageUrl: json['heroImageUrl'] as String?,
+      isOpenNow: json['isOpenNow'] as bool? ?? false,
+      acceptingOrders: json['acceptingOrders'] as bool? ?? false,
+      orderingMode: json['orderingMode'] as String? ?? 'auto',
+      closureLabel: json['closureLabel'] as String?,
+      nextTransitionAt: json['nextTransitionAt'] is String
+          ? DateTime.tryParse(json['nextTransitionAt'] as String)
+          : null,
+      nextTransitionLabel: json['nextTransitionLabel'] as String?,
     );
   }
 }
