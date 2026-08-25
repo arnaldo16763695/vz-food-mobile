@@ -110,15 +110,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
 
                 if (snapshot.hasError) {
-                  return _HomeErrorCard(
-                    error: snapshot.error,
-                    onRetry: _retry,
-                  );
+                  return _HomeErrorCard(error: snapshot.error, onRetry: _retry);
                 }
 
                 final result = snapshot.data;
                 final payload = result?.payload;
-                if (result == null || payload == null || payload.isCompletelyEmpty) {
+                if (result == null ||
+                    payload == null ||
+                    payload.isCompletelyEmpty) {
                   return _HomeEmptyCard(locationStatus: result?.locationStatus);
                 }
 
@@ -167,10 +166,7 @@ class _HomeLoadingCard extends StatelessWidget {
 }
 
 class _HomeErrorCard extends StatelessWidget {
-  const _HomeErrorCard({
-    required this.error,
-    required this.onRetry,
-  });
+  const _HomeErrorCard({required this.error, required this.onRetry});
 
   final Object? error;
   final VoidCallback onRetry;
@@ -192,15 +188,9 @@ class _HomeErrorCard extends StatelessWidget {
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: 12),
-            Text(
-              '$error',
-              style: theme.textTheme.bodySmall,
-            ),
+            Text('$error', style: theme.textTheme.bodySmall),
             const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: onRetry,
-              child: const Text('Reintentar'),
-            ),
+            ElevatedButton(onPressed: onRetry, child: const Text('Reintentar')),
           ],
         ),
       ),
@@ -259,10 +249,7 @@ class _HomeEmptyCard extends StatelessWidget {
 }
 
 class _HomePayloadCard extends StatelessWidget {
-  const _HomePayloadCard({
-    required this.payload,
-    required this.locationStatus,
-  });
+  const _HomePayloadCard({required this.payload, required this.locationStatus});
 
   final HomePayload payload;
   final LocationAccessStatus locationStatus;
@@ -295,7 +282,8 @@ class _HomePayloadCard extends StatelessWidget {
         const SizedBox(height: 16),
         _HomeSectionCard(
           title: 'Marcas destacadas',
-          subtitle: 'Descubrimiento editorial para llevar al cliente al storefront correcto.',
+          subtitle:
+              'Descubrimiento editorial para llevar al cliente al storefront correcto.',
           child: payload.featuredBrands.isEmpty
               ? const _SectionEmptyMessage(
                   message: 'No hay marcas destacadas cargadas en este momento.',
@@ -321,10 +309,12 @@ class _HomePayloadCard extends StatelessWidget {
         const SizedBox(height: 16),
         _HomeSectionCard(
           title: 'Sucursales cercanas',
-          subtitle: 'Esta seccion debe poblarse con GPS real en la siguiente iteracion.',
+          subtitle:
+              'Esta seccion debe poblarse con GPS real en la siguiente iteracion.',
           child: payload.nearbyBranches.isEmpty
               ? const _SectionEmptyMessage(
-                  message: 'Aun no hay sucursales cercanas en home. Luego conectaremos GPS para enviar lat/lng.',
+                  message:
+                      'Aun no hay sucursales cercanas en home. Luego conectaremos GPS para enviar lat/lng.',
                 )
               : Column(
                   children: payload.nearbyBranches
@@ -421,7 +411,9 @@ class _HeroBannerTile extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 banner.subtitle,
-                style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: Colors.white,
+                ),
               ),
             ],
             const SizedBox(height: 12),
@@ -437,10 +429,7 @@ class _HeroBannerTile extends StatelessWidget {
 }
 
 class _FeaturedBrandTile extends StatelessWidget {
-  const _FeaturedBrandTile({
-    required this.brand,
-    required this.onTap,
-  });
+  const _FeaturedBrandTile({required this.brand, required this.onTap});
 
   final HomeFeaturedBrand brand;
   final VoidCallback onTap;

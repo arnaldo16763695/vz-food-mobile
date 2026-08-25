@@ -126,7 +126,8 @@ class OrderDetail {
       customerPhone: json['customerPhone'] as String?,
       customerEmail: json['customerEmail'] as String?,
       notes: json['notes'] as String?,
-      paymentReceiptSubmissions: (json['paymentReceiptSubmissions'] as List?)
+      paymentReceiptSubmissions:
+          (json['paymentReceiptSubmissions'] as List?)
               ?.whereType<Map>()
               .map(
                 (item) => PaymentReceiptSubmission.fromJson(
@@ -137,11 +138,12 @@ class OrderDetail {
           const [],
       items: rawItems is List
           ? rawItems
-              .whereType<Map>()
-              .map(
-                (item) => OrderDetailItem.fromJson(Map<String, dynamic>.from(item)),
-              )
-              .toList(growable: false)
+                .whereType<Map>()
+                .map(
+                  (item) =>
+                      OrderDetailItem.fromJson(Map<String, dynamic>.from(item)),
+                )
+                .toList(growable: false)
           : const [],
     );
   }

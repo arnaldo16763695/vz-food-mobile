@@ -78,7 +78,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Future<void> _uploadPaymentProof() async {
     if (_paymentProofPath == null || _paymentProofPath!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Adjunta un comprobante antes de enviarlo.')),
+        const SnackBar(
+          content: Text('Adjunta un comprobante antes de enviarlo.'),
+        ),
       );
       return;
     }
@@ -101,14 +103,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
       if (!ok) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo actualizar el comprobante.')),
+          const SnackBar(
+            content: Text('No se pudo actualizar el comprobante.'),
+          ),
         );
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Comprobante actualizado.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Comprobante actualizado.')));
       setState(() {
         _paymentProofPath = null;
         _future = _load();
@@ -210,8 +214,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         Text('Cliente', style: theme.textTheme.titleLarge),
                         const SizedBox(height: 12),
                         _DetailRow(label: 'Nombre', value: order.customerName),
-                        _DetailRow(label: 'Email', value: order.customerEmail ?? 'Sin email'),
-                        _DetailRow(label: 'Telefono', value: order.customerPhone ?? 'Sin telefono'),
+                        _DetailRow(
+                          label: 'Email',
+                          value: order.customerEmail ?? 'Sin email',
+                        ),
+                        _DetailRow(
+                          label: 'Telefono',
+                          value: order.customerPhone ?? 'Sin telefono',
+                        ),
                         _DetailRow(
                           label: 'Entrega',
                           value: localizedStatusLabel(order.fulfillmentType),
@@ -254,7 +264,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             style: theme.textTheme.bodyMedium,
                           ),
                         if (order.paymentRejectionReason != null &&
-                            order.paymentRejectionReason!.trim().isNotEmpty) ...[
+                            order.paymentRejectionReason!
+                                .trim()
+                                .isNotEmpty) ...[
                           const SizedBox(height: 8),
                           Text(
                             'Motivo de rechazo: ${order.paymentRejectionReason}',
@@ -284,7 +296,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                               _paymentMethod = value;
                             });
                           },
-                          decoration: const InputDecoration(labelText: 'Metodo de pago'),
+                          decoration: const InputDecoration(
+                            labelText: 'Metodo de pago',
+                          ),
                         ),
                         const SizedBox(height: 16),
                         OutlinedButton(
@@ -297,11 +311,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         ),
                         if (_paymentProofPath != null) ...[
                           const SizedBox(height: 10),
-                          Text(_paymentProofPath!, style: theme.textTheme.bodySmall),
+                          Text(
+                            _paymentProofPath!,
+                            style: theme.textTheme.bodySmall,
+                          ),
                         ],
                         const SizedBox(height: 16),
                         ElevatedButton(
-                          onPressed: _uploadingProof ? null : _uploadPaymentProof,
+                          onPressed: _uploadingProof
+                              ? null
+                              : _uploadPaymentProof,
                           child: Text(
                             _uploadingProof
                                 ? 'Subiendo...'
@@ -341,7 +360,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(item.productName, style: theme.textTheme.bodyLarge),
+                                Text(
+                                  item.productName,
+                                  style: theme.textTheme.bodyLarge,
+                                ),
                                 const SizedBox(height: 4),
                                 Text(
                                   '${item.quantity}x · ${AppFormatters.currency(item.lineTotal)}',
@@ -378,7 +400,10 @@ class _DetailRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
-          SizedBox(width: 90, child: Text(label, style: theme.textTheme.bodySmall)),
+          SizedBox(
+            width: 90,
+            child: Text(label, style: theme.textTheme.bodySmall),
+          ),
           Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
         ],
       ),
@@ -405,11 +430,17 @@ class _OrderDetailError extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('No se pudo cargar el pedido', style: theme.textTheme.titleLarge),
+              Text(
+                'No se pudo cargar el pedido',
+                style: theme.textTheme.titleLarge,
+              ),
               const SizedBox(height: 8),
               Text('$error', style: theme.textTheme.bodySmall),
               const SizedBox(height: 16),
-              ElevatedButton(onPressed: onRetry, child: const Text('Reintentar')),
+              ElevatedButton(
+                onPressed: onRetry,
+                child: const Text('Reintentar'),
+              ),
             ],
           ),
         ),
@@ -423,6 +454,8 @@ class _OrderDetailEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(child: Text('No hay detalle disponible para este pedido.'));
+    return const Center(
+      child: Text('No hay detalle disponible para este pedido.'),
+    );
   }
 }

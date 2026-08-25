@@ -42,10 +42,8 @@ class QuantityStepper extends StatelessWidget {
           ),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 160),
-            transitionBuilder: (child, animation) => ScaleTransition(
-              scale: animation,
-              child: child,
-            ),
+            transitionBuilder: (child, animation) =>
+                ScaleTransition(scale: animation, child: child),
             child: SizedBox(
               key: ValueKey(quantity),
               width: numberWidth,

@@ -7,17 +7,11 @@ class HomeApi {
 
   final Dio _dio;
 
-  Future<HomePayload> fetchHome({
-    double? latitude,
-    double? longitude,
-  }) async {
+  Future<HomePayload> fetchHome({double? latitude, double? longitude}) async {
     final response = await _dio.get<Object?>(
       '/api/mobile/home',
       queryParameters: latitude != null && longitude != null
-          ? {
-              'lat': latitude,
-              'lng': longitude,
-            }
+          ? {'lat': latitude, 'lng': longitude}
           : null,
     );
     final data = response.data;

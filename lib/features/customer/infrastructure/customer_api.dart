@@ -12,11 +12,7 @@ class CustomerApi {
   }) async {
     final response = await _dio.get<Object?>(
       '/api/mobile/customer/me',
-      options: Options(
-        headers: {
-          'Authorization': 'Bearer $accessToken',
-        },
-      ),
+      options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
     );
     final data = response.data;
 

@@ -87,7 +87,8 @@ class BagItem {
       unitPrice: (json['unitPrice'] as num?)?.toDouble() ?? 0,
       unitPriceLabel: json['unitPriceLabel'] as String? ?? '',
       quantity: (json['quantity'] as num?)?.toInt() ?? 0,
-      modifierSelections: (json['modifierSelections'] as List?)
+      modifierSelections:
+          (json['modifierSelections'] as List?)
               ?.whereType<Map>()
               .map(
                 (item) => BagModifierSelection.fromJson(

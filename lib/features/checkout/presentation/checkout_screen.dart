@@ -218,9 +218,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       if (!result.ok) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result.error ?? 'No se pudo crear la orden.'),
-          ),
+          SnackBar(content: Text(result.error ?? 'No se pudo crear la orden.')),
         );
         return;
       }
@@ -249,7 +247,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         return;
       }
 
-      final branchQuery = widget.branchId.isEmpty ? '' : '?branchId=${widget.branchId}';
+      final branchQuery = widget.branchId.isEmpty
+          ? ''
+          : '?branchId=${widget.branchId}';
       context.go('/storefront/${widget.tenantSlug}/orders$branchQuery');
     } catch (error) {
       if (!mounted) {
@@ -291,10 +291,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             }
 
             if (snapshot.hasError) {
-              return _CheckoutError(
-                error: snapshot.error,
-                onRetry: _retry,
-              );
+              return _CheckoutError(error: snapshot.error, onRetry: _retry);
             }
 
             final data = snapshot.data;
@@ -553,7 +550,10 @@ class _CheckoutPersonalStep extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Paso 1: datos personales', style: theme.textTheme.titleLarge),
+              Text(
+                'Paso 1: datos personales',
+                style: theme.textTheme.titleLarge,
+              ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: fullNameController,
@@ -583,7 +583,9 @@ class _CheckoutPersonalStep extends StatelessWidget {
               TextFormField(
                 controller: notesController,
                 maxLines: 3,
-                decoration: const InputDecoration(labelText: 'Notas (opcional)'),
+                decoration: const InputDecoration(
+                  labelText: 'Notas (opcional)',
+                ),
               ),
               const SizedBox(height: 20),
               SizedBox(
@@ -632,11 +634,13 @@ class _CheckoutPaymentStep extends StatelessWidget {
   String get _instructions {
     switch (paymentMethod) {
       case CheckoutPaymentMethod.mobilePayment:
-        return paymentSettings.mobilePaymentInstructions?.trim().isNotEmpty == true
+        return paymentSettings.mobilePaymentInstructions?.trim().isNotEmpty ==
+                true
             ? paymentSettings.mobilePaymentInstructions!.trim()
             : 'Usa los datos de pago movil del comercio y adjunta tu comprobante para continuar.';
       case CheckoutPaymentMethod.bankTransfer:
-        return paymentSettings.bankTransferInstructions?.trim().isNotEmpty == true
+        return paymentSettings.bankTransferInstructions?.trim().isNotEmpty ==
+                true
             ? paymentSettings.bankTransferInstructions!.trim()
             : 'Usa los datos de transferencia del comercio y adjunta tu comprobante para continuar.';
     }
@@ -720,10 +724,7 @@ class _CheckoutPaymentStep extends StatelessWidget {
                     value: paymentMethod.label,
                   ),
                   const SizedBox(height: 8),
-                  _CheckoutSummaryRow(
-                    label: 'Productos',
-                    value: '$totalItems',
-                  ),
+                  _CheckoutSummaryRow(label: 'Productos', value: '$totalItems'),
                   const SizedBox(height: 8),
                   _CheckoutSummaryRow(
                     label: 'Total estimado',
@@ -849,13 +850,14 @@ class _CheckoutSummaryRow extends StatelessWidget {
         const SizedBox(width: 12),
         Text(
           value,
-          style: (emphasize
-                  ? theme.textTheme.titleMedium
-                  : theme.textTheme.bodyMedium)
-              ?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: emphasize ? AppColors.brandPrimaryDark : null,
-              ),
+          style:
+              (emphasize
+                      ? theme.textTheme.titleMedium
+                      : theme.textTheme.bodyMedium)
+                  ?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: emphasize ? AppColors.brandPrimaryDark : null,
+                  ),
         ),
       ],
     );
@@ -881,11 +883,17 @@ class _CheckoutError extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('No se pudo preparar checkout', style: theme.textTheme.titleLarge),
+              Text(
+                'No se pudo preparar checkout',
+                style: theme.textTheme.titleLarge,
+              ),
               const SizedBox(height: 8),
               Text('$error', style: theme.textTheme.bodySmall),
               const SizedBox(height: 16),
-              ElevatedButton(onPressed: onRetry, child: const Text('Reintentar')),
+              ElevatedButton(
+                onPressed: onRetry,
+                child: const Text('Reintentar'),
+              ),
             ],
           ),
         ),

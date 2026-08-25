@@ -1,8 +1,5 @@
 class StorefrontLink {
-  const StorefrontLink({
-    required this.tenantSlug,
-    required this.branchId,
-  });
+  const StorefrontLink({required this.tenantSlug, required this.branchId});
 
   final String tenantSlug;
   final String? branchId;

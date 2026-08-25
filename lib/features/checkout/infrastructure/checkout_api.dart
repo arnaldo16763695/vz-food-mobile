@@ -43,7 +43,8 @@ class CheckoutApi {
       requestOptions: response.requestOptions,
       response: response,
       type: DioExceptionType.badResponse,
-      message: 'Expected payment settings endpoint to return a settings object.',
+      message:
+          'Expected payment settings endpoint to return a settings object.',
     );
   }
 
@@ -71,11 +72,7 @@ class CheckoutApi {
     final response = await _dio.post<Object?>(
       '/api/mobile/storefront/${submission.tenantSlug}/checkout',
       data: formData,
-      options: Options(
-        headers: {
-          'Authorization': 'Bearer $accessToken',
-        },
-      ),
+      options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
     );
 
     final data = response.data;

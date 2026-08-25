@@ -1,15 +1,9 @@
 import '../domain/bag_payload.dart';
 
-enum BagAccessStatus {
-  authenticated,
-  unauthenticated,
-}
+enum BagAccessStatus { authenticated, unauthenticated }
 
 class BagLoadResult {
-  const BagLoadResult({
-    required this.status,
-    this.payload,
-  });
+  const BagLoadResult({required this.status, this.payload});
 
   final BagAccessStatus status;
   final BagPayload? payload;

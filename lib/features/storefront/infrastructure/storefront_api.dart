@@ -93,14 +93,17 @@ class StorefrontApi {
       requestOptions: response.requestOptions,
       response: response,
       type: DioExceptionType.badResponse,
-      message: 'Expected storefront search response to include a products array.',
+      message:
+          'Expected storefront search response to include a products array.',
     );
   }
 
   List<StorefrontProduct> _parseProductsList(List rawProducts) {
     return rawProducts
         .whereType<Map>()
-        .map((item) => StorefrontProduct.fromJson(Map<String, dynamic>.from(item)))
+        .map(
+          (item) => StorefrontProduct.fromJson(Map<String, dynamic>.from(item)),
+        )
         .toList(growable: false);
   }
 }

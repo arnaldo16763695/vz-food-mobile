@@ -8,11 +8,7 @@ class OrdersApi {
   final Dio _dio;
 
   Options _authOptions(String accessToken) {
-    return Options(
-      headers: {
-        'Authorization': 'Bearer $accessToken',
-      },
-    );
+    return Options(headers: {'Authorization': 'Bearer $accessToken'});
   }
 
   Future<OrdersPayload> fetchOrders({

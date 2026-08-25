@@ -34,96 +34,94 @@ class AppRouter {
     required HomeApi homeApi,
     required BrandsApi brandsApi,
     required StorefrontApi storefrontApi,
-  })
-      : router = GoRouter(
-          routes: [
-            GoRoute(
-              path: '/',
-              builder: (context, state) => HomeScreen(
-                config: config,
-                locationService: locationService,
-                homeApi: homeApi,
-              ),
-            ),
-            GoRoute(
-              path: '/marketplace',
-              builder: (context, state) => MarketplaceScreen(
-                brandsApi: brandsApi,
-              ),
-            ),
-            GoRoute(
-              path: '/account',
-              builder: (context, state) => AccountScreen(
-                authAccountService: authAccountService,
-                authSession: authSession,
-                bagApi: bagApi,
-                bagCountController: bagCountController,
-                customerApi: customerApi,
-                hasSupabaseConfig: config.hasSupabaseConfig,
-                tenantSlug: state.uri.queryParameters['tenantSlug'],
-                branchId: state.uri.queryParameters['branchId'],
-              ),
-            ),
-            GoRoute(
-              path: '/storefront/:tenantSlug',
-              builder: (context, state) => StorefrontScreen(
-                authSession: authSession,
-                bagApi: bagApi,
-                bagCountController: bagCountController,
-                storefrontApi: storefrontApi,
-                tenantSlug: state.pathParameters['tenantSlug'] ?? '',
-                branchId: state.uri.queryParameters['branchId'],
-              ),
-            ),
-            GoRoute(
-              path: '/storefront/:tenantSlug/bag',
-              builder: (context, state) => BagScreen(
-                bagApi: bagApi,
-                bagCountController: bagCountController,
-                authSession: authSession,
-                storefrontApi: storefrontApi,
-                tenantSlug: state.pathParameters['tenantSlug'] ?? '',
-                branchId: state.uri.queryParameters['branchId'] ?? '',
-              ),
-            ),
-            GoRoute(
-              path: '/storefront/:tenantSlug/checkout',
-              builder: (context, state) => CheckoutScreen(
-                authSession: authSession,
-                bagApi: bagApi,
-                bagCountController: bagCountController,
-                customerApi: customerApi,
-                checkoutApi: checkoutApi,
-                storefrontApi: storefrontApi,
-                tenantSlug: state.pathParameters['tenantSlug'] ?? '',
-                branchId: state.uri.queryParameters['branchId'] ?? '',
-              ),
-            ),
-            GoRoute(
-              path: '/storefront/:tenantSlug/orders',
-              builder: (context, state) => OrdersScreen(
-                authSession: authSession,
-                bagApi: bagApi,
-                bagCountController: bagCountController,
-                ordersApi: ordersApi,
-                tenantSlug: state.pathParameters['tenantSlug'] ?? '',
-                branchId: state.uri.queryParameters['branchId'],
-              ),
-            ),
-            GoRoute(
-              path: '/storefront/:tenantSlug/orders/:orderId',
-              builder: (context, state) => OrderDetailScreen(
-                authSession: authSession,
-                bagApi: bagApi,
-                bagCountController: bagCountController,
-                ordersApi: ordersApi,
-                tenantSlug: state.pathParameters['tenantSlug'] ?? '',
-                orderId: state.pathParameters['orderId'] ?? '',
-                branchId: state.uri.queryParameters['branchId'],
-              ),
-            ),
-          ],
-        );
+  }) : router = GoRouter(
+         routes: [
+           GoRoute(
+             path: '/',
+             builder: (context, state) => HomeScreen(
+               config: config,
+               locationService: locationService,
+               homeApi: homeApi,
+             ),
+           ),
+           GoRoute(
+             path: '/marketplace',
+             builder: (context, state) =>
+                 MarketplaceScreen(brandsApi: brandsApi),
+           ),
+           GoRoute(
+             path: '/account',
+             builder: (context, state) => AccountScreen(
+               authAccountService: authAccountService,
+               authSession: authSession,
+               bagApi: bagApi,
+               bagCountController: bagCountController,
+               customerApi: customerApi,
+               hasSupabaseConfig: config.hasSupabaseConfig,
+               tenantSlug: state.uri.queryParameters['tenantSlug'],
+               branchId: state.uri.queryParameters['branchId'],
+             ),
+           ),
+           GoRoute(
+             path: '/storefront/:tenantSlug',
+             builder: (context, state) => StorefrontScreen(
+               authSession: authSession,
+               bagApi: bagApi,
+               bagCountController: bagCountController,
+               storefrontApi: storefrontApi,
+               tenantSlug: state.pathParameters['tenantSlug'] ?? '',
+               branchId: state.uri.queryParameters['branchId'],
+             ),
+           ),
+           GoRoute(
+             path: '/storefront/:tenantSlug/bag',
+             builder: (context, state) => BagScreen(
+               bagApi: bagApi,
+               bagCountController: bagCountController,
+               authSession: authSession,
+               storefrontApi: storefrontApi,
+               tenantSlug: state.pathParameters['tenantSlug'] ?? '',
+               branchId: state.uri.queryParameters['branchId'] ?? '',
+             ),
+           ),
+           GoRoute(
+             path: '/storefront/:tenantSlug/checkout',
+             builder: (context, state) => CheckoutScreen(
+               authSession: authSession,
+               bagApi: bagApi,
+               bagCountController: bagCountController,
+               customerApi: customerApi,
+               checkoutApi: checkoutApi,
+               storefrontApi: storefrontApi,
+               tenantSlug: state.pathParameters['tenantSlug'] ?? '',
+               branchId: state.uri.queryParameters['branchId'] ?? '',
+             ),
+           ),
+           GoRoute(
+             path: '/storefront/:tenantSlug/orders',
+             builder: (context, state) => OrdersScreen(
+               authSession: authSession,
+               bagApi: bagApi,
+               bagCountController: bagCountController,
+               ordersApi: ordersApi,
+               tenantSlug: state.pathParameters['tenantSlug'] ?? '',
+               branchId: state.uri.queryParameters['branchId'],
+             ),
+           ),
+           GoRoute(
+             path: '/storefront/:tenantSlug/orders/:orderId',
+             builder: (context, state) => OrderDetailScreen(
+               authSession: authSession,
+               bagApi: bagApi,
+               bagCountController: bagCountController,
+               ordersApi: ordersApi,
+               tenantSlug: state.pathParameters['tenantSlug'] ?? '',
+               orderId: state.pathParameters['orderId'] ?? '',
+               branchId: state.uri.queryParameters['branchId'],
+             ),
+           ),
+         ],
+       );
 
   final GoRouter router;
 }

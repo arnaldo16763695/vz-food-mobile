@@ -85,7 +85,12 @@ class _BagScreenState extends State<BagScreen> {
       widget.bagCountController.setCountForContext(
         tenantSlug: widget.tenantSlug,
         branchId: widget.branchId,
-        count: result.payload?.items.fold<int>(0, (sum, item) => sum + item.quantity) ?? 0,
+        count:
+            result.payload?.items.fold<int>(
+              0,
+              (sum, item) => sum + item.quantity,
+            ) ??
+            0,
       );
     } catch (error) {
       if (!mounted) {
@@ -132,7 +137,12 @@ class _BagScreenState extends State<BagScreen> {
       widget.bagCountController.setCountForContext(
         tenantSlug: widget.tenantSlug,
         branchId: widget.branchId,
-        count: _result?.payload?.items.fold<int>(0, (sum, item) => sum + item.quantity) ?? 0,
+        count:
+            _result?.payload?.items.fold<int>(
+              0,
+              (sum, item) => sum + item.quantity,
+            ) ??
+            0,
       );
     } catch (_) {
       // Keep the optimistic state if background refresh fails.
@@ -147,9 +157,7 @@ class _BagScreenState extends State<BagScreen> {
       return refreshedItems ?? const <BagItem>[];
     }
 
-    final refreshedById = {
-      for (final item in refreshedItems) item.id: item,
-    };
+    final refreshedById = {for (final item in refreshedItems) item.id: item};
     final ordered = <BagItem>[];
 
     for (final item in previousItems) {
@@ -314,7 +322,12 @@ class _BagScreenState extends State<BagScreen> {
     widget.bagCountController.setCountForContext(
       tenantSlug: widget.tenantSlug,
       branchId: widget.branchId,
-      count: _result?.payload?.items.fold<int>(0, (sum, item) => sum + item.quantity) ?? 0,
+      count:
+          _result?.payload?.items.fold<int>(
+            0,
+            (sum, item) => sum + item.quantity,
+          ) ??
+          0,
     );
 
     try {
@@ -341,7 +354,10 @@ class _BagScreenState extends State<BagScreen> {
       widget.bagCountController.setCountForContext(
         tenantSlug: widget.tenantSlug,
         branchId: widget.branchId,
-        count: previousPayload.items.fold<int>(0, (sum, item) => sum + item.quantity),
+        count: previousPayload.items.fold<int>(
+          0,
+          (sum, item) => sum + item.quantity,
+        ),
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -412,12 +428,12 @@ class _BagScreenState extends State<BagScreen> {
       return const _BagEmpty();
     }
 
-      return _BagView(
-        payload: payload,
-        branch: _branch,
-        mutatingItemId: _mutatingItemId,
-        onDecrement: _decrementItem,
-        onIncrement: _incrementItem,
+    return _BagView(
+      payload: payload,
+      branch: _branch,
+      mutatingItemId: _mutatingItemId,
+      onDecrement: _decrementItem,
+      onIncrement: _incrementItem,
       onRemove: _removeItem,
     );
   }
@@ -456,7 +472,7 @@ class _BagView extends StatelessWidget {
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+            children: [
               Text('Tu bolsa de compra', style: theme.textTheme.headlineMedium),
               const SizedBox(height: 8),
               Text(
@@ -519,9 +535,7 @@ class _CheckoutBottomBar extends StatelessWidget {
                 : () => context.push(
                     '/storefront/${payload.items.first.tenantSlug}/checkout?branchId=${payload.items.first.branchId}',
                   ),
-            child: Text(
-              canCheckout ? 'Ir a checkout' : 'Sucursal cerrada',
-            ),
+            child: Text(canCheckout ? 'Ir a checkout' : 'Sucursal cerrada'),
           ),
         ),
       ),
@@ -530,10 +544,7 @@ class _CheckoutBottomBar extends StatelessWidget {
 }
 
 class _BagRequiresLogin extends StatelessWidget {
-  const _BagRequiresLogin({
-    required this.tenantSlug,
-    required this.branchId,
-  });
+  const _BagRequiresLogin({required this.tenantSlug, required this.branchId});
 
   final String tenantSlug;
   final String branchId;
@@ -620,7 +631,10 @@ class _BagError extends StatelessWidget {
               const SizedBox(height: 8),
               Text('$error', style: theme.textTheme.bodySmall),
               const SizedBox(height: 16),
-              ElevatedButton(onPressed: onRetry, child: const Text('Reintentar')),
+              ElevatedButton(
+                onPressed: onRetry,
+                child: const Text('Reintentar'),
+              ),
             ],
           ),
         ),
@@ -702,7 +716,8 @@ class _BagItemCard extends StatelessWidget {
                   ),
                 ],
               ),
-              if (item.variantName != null && item.variantName!.trim().isNotEmpty) ...[
+              if (item.variantName != null &&
+                  item.variantName!.trim().isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text(
                   item.variantName!,
@@ -788,8 +803,8 @@ class _BagModifierChip extends StatelessWidget {
     final label = isAdded
         ? 'Agregado: $optionLabel'
         : normalizedOptionLabel.startsWith('sin ')
-            ? optionLabel
-            : 'Excluido: $optionLabel';
+        ? optionLabel
+        : 'Excluido: $optionLabel';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),

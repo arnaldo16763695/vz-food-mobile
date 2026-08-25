@@ -9,10 +9,7 @@ import '../domain/brands_payload.dart';
 import '../infrastructure/brands_api.dart';
 
 class MarketplaceScreen extends StatefulWidget {
-  const MarketplaceScreen({
-    super.key,
-    required this.brandsApi,
-  });
+  const MarketplaceScreen({super.key, required this.brandsApi});
 
   final BrandsApi brandsApi;
 
@@ -42,9 +39,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Marketplace'),
-      ),
+      appBar: AppBar(title: const Text('Marketplace')),
       body: SafeArea(
         child: FutureBuilder<BrandsPayload>(
           future: _brandsFuture,
@@ -54,10 +49,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
             }
 
             if (snapshot.hasError) {
-              return _MarketplaceError(
-                error: snapshot.error,
-                onRetry: _retry,
-              );
+              return _MarketplaceError(error: snapshot.error, onRetry: _retry);
             }
 
             final payload = snapshot.data;
@@ -98,7 +90,9 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                   (brand) => _BrandCard(
                     brand: brand,
                     onTap: () {
-                      final link = StorefrontLink.tryParse(brand.storefrontHref);
+                      final link = StorefrontLink.tryParse(
+                        brand.storefrontHref,
+                      );
                       if (link != null) {
                         context.push(link.routeLocation);
                       }
@@ -124,10 +118,7 @@ class _MarketplaceLoading extends StatelessWidget {
 }
 
 class _MarketplaceError extends StatelessWidget {
-  const _MarketplaceError({
-    required this.error,
-    required this.onRetry,
-  });
+  const _MarketplaceError({required this.error, required this.onRetry});
 
   final Object? error;
   final VoidCallback onRetry;
@@ -145,7 +136,10 @@ class _MarketplaceError extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('No se pudo cargar marketplace', style: theme.textTheme.titleLarge),
+              Text(
+                'No se pudo cargar marketplace',
+                style: theme.textTheme.titleLarge,
+              ),
               const SizedBox(height: 8),
               Text('$error', style: theme.textTheme.bodySmall),
               const SizedBox(height: 16),
@@ -184,10 +178,7 @@ class _MarketplaceEmpty extends StatelessWidget {
 }
 
 class _BrandCard extends StatelessWidget {
-  const _BrandCard({
-    required this.brand,
-    required this.onTap,
-  });
+  const _BrandCard({required this.brand, required this.onTap});
 
   final BrandSummary brand;
   final VoidCallback onTap;
@@ -219,7 +210,9 @@ class _BrandCard extends StatelessWidget {
                   children: [
                     _BrandMetaChip(label: '${brand.etaMinutes} min'),
                     _BrandMetaChip(label: brand.nearestBranch),
-                    _BrandMetaChip(label: '${brand.activeBranchCount} sucursales'),
+                    _BrandMetaChip(
+                      label: '${brand.activeBranchCount} sucursales',
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),

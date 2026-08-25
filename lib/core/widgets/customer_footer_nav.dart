@@ -6,12 +6,7 @@ import '../theme/app_colors.dart';
 import '../../features/bag/application/bag_count_controller.dart';
 import '../../features/bag/infrastructure/bag_api.dart';
 
-enum CustomerFooterTab {
-  home,
-  bag,
-  orders,
-  profile,
-}
+enum CustomerFooterTab { home, bag, orders, profile }
 
 class CustomerFooterNav extends StatefulWidget {
   const CustomerFooterNav({
@@ -75,10 +70,13 @@ class _CustomerFooterNavState extends State<CustomerFooterNav> {
         }
         context.go('/');
       case CustomerFooterTab.bag:
-        if ((widget.tenantSlug ?? '').isEmpty || (widget.branchId ?? '').isEmpty) {
+        if ((widget.tenantSlug ?? '').isEmpty ||
+            (widget.branchId ?? '').isEmpty) {
           return;
         }
-        context.go('/storefront/${widget.tenantSlug}/bag?branchId=${widget.branchId}');
+        context.go(
+          '/storefront/${widget.tenantSlug}/bag?branchId=${widget.branchId}',
+        );
       case CustomerFooterTab.orders:
         if ((widget.tenantSlug ?? '').isEmpty) {
           return;
@@ -153,7 +151,9 @@ class _CustomerFooterNavState extends State<CustomerFooterNav> {
               icon: Icons.shopping_bag_rounded,
               label: 'Bolsa',
               isActive: widget.currentTab == CustomerFooterTab.bag,
-              isEnabled: (widget.tenantSlug ?? '').isNotEmpty && (widget.branchId ?? '').isNotEmpty,
+              isEnabled:
+                  (widget.tenantSlug ?? '').isNotEmpty &&
+                  (widget.branchId ?? '').isNotEmpty,
               badgeCount: bagCount,
               onTap: () => _navigate(CustomerFooterTab.bag),
             ),
@@ -186,13 +186,13 @@ class _FooterItem extends StatelessWidget {
     final iconColor = !isEnabled
         ? AppColors.textMuted.withValues(alpha: 0.55)
         : isActive
-            ? AppColors.brandPrimary
-            : AppColors.textMuted;
+        ? AppColors.brandPrimary
+        : AppColors.textMuted;
     final labelStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
-          fontSize: 10,
-          fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-          color: iconColor,
-        );
+      fontSize: 10,
+      fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+      color: iconColor,
+    );
 
     return InkWell(
       borderRadius: BorderRadius.circular(18),
@@ -231,7 +231,10 @@ class _FooterItem extends StatelessWidget {
                       top: -4,
                       child: Container(
                         constraints: const BoxConstraints(minWidth: 18),
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.brandPrimary,
                           borderRadius: BorderRadius.circular(999),

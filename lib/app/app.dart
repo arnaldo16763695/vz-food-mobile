@@ -5,10 +5,7 @@ import 'router.dart';
 import 'bootstrap.dart';
 
 class VzFoodApp extends StatelessWidget {
-  const VzFoodApp({
-    super.key,
-    required this.bootstrapData,
-  });
+  const VzFoodApp({super.key, required this.bootstrapData});
 
   final BootstrapData bootstrapData;
 

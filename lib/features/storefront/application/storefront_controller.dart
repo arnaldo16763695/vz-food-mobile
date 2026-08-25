@@ -10,10 +10,7 @@ class StorefrontController {
     required String tenantSlug,
     String? branchId,
   }) {
-    return _api.fetchStorefront(
-      tenantSlug: tenantSlug,
-      branchId: branchId,
-    );
+    return _api.fetchStorefront(tenantSlug: tenantSlug, branchId: branchId);
   }
 
   Future<List<StorefrontProduct>> searchProducts({

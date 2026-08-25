@@ -229,11 +229,17 @@ class _OrdersError extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('No se pudieron cargar pedidos', style: theme.textTheme.titleLarge),
+              Text(
+                'No se pudieron cargar pedidos',
+                style: theme.textTheme.titleLarge,
+              ),
               const SizedBox(height: 8),
               Text('$error', style: theme.textTheme.bodySmall),
               const SizedBox(height: 16),
-              ElevatedButton(onPressed: onRetry, child: const Text('Reintentar')),
+              ElevatedButton(
+                onPressed: onRetry,
+                child: const Text('Reintentar'),
+              ),
             ],
           ),
         ),

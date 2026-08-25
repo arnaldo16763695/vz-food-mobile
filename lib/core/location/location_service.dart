@@ -10,20 +10,14 @@ enum LocationAccessStatus {
 }
 
 class LocationCoordinates {
-  const LocationCoordinates({
-    required this.latitude,
-    required this.longitude,
-  });
+  const LocationCoordinates({required this.latitude, required this.longitude});
 
   final double latitude;
   final double longitude;
 }
 
 class LocationAccessResult {
-  const LocationAccessResult({
-    required this.status,
-    this.coordinates,
-  });
+  const LocationAccessResult({required this.status, this.coordinates});
 
   final LocationAccessStatus status;
   final LocationCoordinates? coordinates;
@@ -39,7 +33,9 @@ class GeolocatorLocationService implements LocationService {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        return const LocationAccessResult(status: LocationAccessStatus.disabled);
+        return const LocationAccessResult(
+          status: LocationAccessStatus.disabled,
+        );
       }
 
       var permission = await Geolocator.checkPermission();
@@ -85,9 +81,13 @@ class GeolocatorLocationService implements LocationService {
       // This can happen right after adding the plugin if the app was only hot reloaded,
       // or on targets where the native plugin is not available yet. Product code should
       // degrade gracefully instead of crashing the entire home flow.
-      return const LocationAccessResult(status: LocationAccessStatus.unavailable);
+      return const LocationAccessResult(
+        status: LocationAccessStatus.unavailable,
+      );
     } catch (_) {
-      return const LocationAccessResult(status: LocationAccessStatus.unavailable);
+      return const LocationAccessResult(
+        status: LocationAccessStatus.unavailable,
+      );
     }
   }
 }

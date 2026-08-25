@@ -122,8 +122,8 @@ class _AccountScreenState extends State<AccountScreen> {
           stream: widget.authAccountService.authStateChanges(),
           initialData: widget.authAccountService.currentState(),
           builder: (context, snapshot) {
-            final state = snapshot.data ??
-                const AuthAccountState(isAuthenticated: false);
+            final state =
+                snapshot.data ?? const AuthAccountState(isAuthenticated: false);
 
             return ListView(
               padding: const EdgeInsets.all(20),
@@ -160,7 +160,8 @@ class _AccountScreenState extends State<AccountScreen> {
                   const _ConfigWarningCard()
                 else if (state.isAuthenticated)
                   _AuthenticatedAccountSection(
-                    customerFuture: _customerFuture ?? _customerController.load(),
+                    customerFuture:
+                        _customerFuture ?? _customerController.load(),
                     state: state,
                     onSignOut: _signOut,
                   )
@@ -202,10 +203,7 @@ class _ConfigWarningCard extends StatelessWidget {
 }
 
 class _SignedInCard extends StatelessWidget {
-  const _SignedInCard({
-    required this.state,
-    required this.onSignOut,
-  });
+  const _SignedInCard({required this.state, required this.onSignOut});
 
   final AuthAccountState state;
   final Future<void> Function() onSignOut;
@@ -224,7 +222,10 @@ class _SignedInCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(state.email ?? 'Sin email', style: theme.textTheme.bodyMedium),
             const SizedBox(height: 4),
-            Text(state.userId ?? 'Sin user id', style: theme.textTheme.bodySmall),
+            Text(
+              state.userId ?? 'Sin user id',
+              style: theme.textTheme.bodySmall,
+            ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: onSignOut,
@@ -301,9 +302,18 @@ class _CustomerProfileCard extends StatelessWidget {
           children: [
             Text('Perfil del backend', style: theme.textTheme.titleLarge),
             const SizedBox(height: 12),
-            _ProfileRow(label: 'Nombre', value: customer.customer.fullName ?? 'Sin nombre'),
-            _ProfileRow(label: 'Email', value: customer.customer.email ?? customer.user.email),
-            _ProfileRow(label: 'Telefono', value: customer.customer.phone ?? 'Sin telefono'),
+            _ProfileRow(
+              label: 'Nombre',
+              value: customer.customer.fullName ?? 'Sin nombre',
+            ),
+            _ProfileRow(
+              label: 'Email',
+              value: customer.customer.email ?? customer.user.email,
+            ),
+            _ProfileRow(
+              label: 'Telefono',
+              value: customer.customer.phone ?? 'Sin telefono',
+            ),
             _ProfileRow(
               label: 'Marketing',
               value: customer.customer.marketingOptIn ? 'Activo' : 'Inactivo',
@@ -330,7 +340,10 @@ class _CustomerProfileError extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('No se pudo cargar customer/me', style: theme.textTheme.titleLarge),
+            Text(
+              'No se pudo cargar customer/me',
+              style: theme.textTheme.titleLarge,
+            ),
             const SizedBox(height: 8),
             Text('$error', style: theme.textTheme.bodySmall),
           ],
@@ -378,9 +391,7 @@ class _ProfileRow extends StatelessWidget {
             width: 86,
             child: Text(label, style: theme.textTheme.bodySmall),
           ),
-          Expanded(
-            child: Text(value, style: theme.textTheme.bodyMedium),
-          ),
+          Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
         ],
       ),
     );

@@ -48,10 +48,7 @@ class Storefront {
             )
           : null,
       etaMinutes: (json['etaMinutes'] as num?)?.toInt() ?? 0,
-      menu: _readList(
-        json['menu'],
-        (item) => StorefrontProduct.fromJson(item),
-      ),
+      menu: _readList(json['menu'], (item) => StorefrontProduct.fromJson(item)),
       shareUrl: json['shareUrl'] as String? ?? '',
     );
   }

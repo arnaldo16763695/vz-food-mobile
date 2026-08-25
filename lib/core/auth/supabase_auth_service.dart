@@ -38,10 +38,7 @@ class SupabaseAccountService implements AuthAccountService {
     required String email,
     required String password,
   }) async {
-    await _client.auth.signInWithPassword(
-      email: email,
-      password: password,
-    );
+    await _client.auth.signInWithPassword(email: email, password: password);
   }
 
   @override
