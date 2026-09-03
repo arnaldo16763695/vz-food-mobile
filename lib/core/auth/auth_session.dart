@@ -14,6 +14,11 @@ abstract class AuthAccountService {
     required String email,
     required String password,
   });
+  Future<AuthSignUpResult> signUpWithEmailPassword({
+    required String email,
+    required String password,
+  });
+  Future<void> sendPasswordReset({required String email});
   Future<void> signOut();
 }
 
@@ -27,4 +32,13 @@ class AuthAccountState {
   final bool isAuthenticated;
   final String? email;
   final String? userId;
+}
+
+/// Outcome of a sign-up attempt. When the backend requires email confirmation
+/// the SDK returns a user without a session, so the customer must confirm the
+/// address before they can sign in.
+class AuthSignUpResult {
+  const AuthSignUpResult({required this.needsEmailConfirmation});
+
+  final bool needsEmailConfirmation;
 }

@@ -297,9 +297,9 @@ class _BagScreenState extends State<BagScreen> {
     final accessToken = await widget.authSession.getAccessToken();
     if (accessToken == null || accessToken.isEmpty) {
       if (mounted) {
-        context.push(
-          '/account?tenantSlug=${widget.tenantSlug}&branchId=${widget.branchId}',
-        );
+        final back =
+            '/storefront/${widget.tenantSlug}/bag?branchId=${widget.branchId}';
+        context.push('/login?redirect=${Uri.encodeComponent(back)}');
       }
       return;
     }
@@ -565,15 +565,15 @@ class _BagRequiresLogin extends StatelessWidget {
               Text('Login requerido', style: theme.textTheme.titleLarge),
               const SizedBox(height: 8),
               Text(
-                'La bolsa de compra es una superficie autenticada. La pantalla ya esta lista para el endpoint real, pero falta conectar Supabase Auth para obtener el Bearer token del cliente.',
+                'Tu sesion expiro o aun no has iniciado sesion. Vuelve a iniciar sesion para ver y modificar tu bolsa.',
                 style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () => context.push(
-                  '/account?tenantSlug=$tenantSlug&branchId=$branchId',
+                  '/login?redirect=${Uri.encodeComponent('/storefront/$tenantSlug/bag?branchId=$branchId')}',
                 ),
-                child: const Text('Ir a cuenta'),
+                child: const Text('Iniciar sesion'),
               ),
             ],
           ),

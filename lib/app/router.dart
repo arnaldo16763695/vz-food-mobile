@@ -1,9 +1,13 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/auth/auth_session.dart';
 import '../core/config/app_config.dart';
 import '../core/location/location_service.dart';
 import '../features/account/presentation/account_screen.dart';
+import '../features/auth/presentation/login_screen.dart';
 import '../features/bag/infrastructure/bag_api.dart';
 import '../features/bag/application/bag_count_controller.dart';
 import '../features/bag/presentation/bag_screen.dart';
@@ -19,6 +23,7 @@ import '../features/orders/presentation/order_detail_screen.dart';
 import '../features/orders/presentation/orders_screen.dart';
 import '../features/storefront/infrastructure/storefront_api.dart';
 import '../features/storefront/presentation/storefront_screen.dart';
+import 'auth_redirect.dart';
 
 class AppRouter {
   AppRouter({
@@ -35,6 +40,13 @@ class AppRouter {
     required BrandsApi brandsApi,
     required StorefrontApi storefrontApi,
   }) : router = GoRouter(
+         refreshListenable: _AuthRefreshListenable(authAccountService),
+         redirect: (context, state) => resolveAuthRedirect(
+           routePattern: state.fullPath,
+           location: state.uri,
+           isAuthenticated: authAccountService.currentState().isAuthenticated,
+           hasSupabaseConfig: config.hasSupabaseConfig,
+         ),
          routes: [
            GoRoute(
              path: '/',
@@ -42,6 +54,14 @@ class AppRouter {
                config: config,
                locationService: locationService,
                homeApi: homeApi,
+             ),
+           ),
+           GoRoute(
+             path: '/login',
+             builder: (context, state) => LoginScreen(
+               authAccountService: authAccountService,
+               hasSupabaseConfig: config.hasSupabaseConfig,
+               redirectLocation: state.uri.queryParameters['redirect'],
              ),
            ),
            GoRoute(
@@ -124,4 +144,20 @@ class AppRouter {
        );
 
   final GoRouter router;
+}
+
+/// Bridges the auth stream to GoRouter so the redirect guard re-runs the moment
+/// a customer signs in or out.
+class _AuthRefreshListenable extends ChangeNotifier {
+  _AuthRefreshListenable(AuthAccountService service) {
+    _subscription = service.authStateChanges().listen((_) => notifyListeners());
+  }
+
+  late final StreamSubscription<AuthAccountState> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
 }

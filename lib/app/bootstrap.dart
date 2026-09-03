@@ -136,5 +136,18 @@ class _NoopAuthAccountService implements AuthAccountService {
   }
 
   @override
+  Future<AuthSignUpResult> signUpWithEmailPassword({
+    required String email,
+    required String password,
+  }) async {
+    throw StateError('Supabase is not configured.');
+  }
+
+  @override
+  Future<void> sendPasswordReset({required String email}) async {
+    throw StateError('Supabase is not configured.');
+  }
+
+  @override
   Future<void> signOut() async {}
 }

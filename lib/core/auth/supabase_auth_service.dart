@@ -42,6 +42,23 @@ class SupabaseAccountService implements AuthAccountService {
   }
 
   @override
+  Future<AuthSignUpResult> signUpWithEmailPassword({
+    required String email,
+    required String password,
+  }) async {
+    final response = await _client.auth.signUp(
+      email: email,
+      password: password,
+    );
+    return AuthSignUpResult(needsEmailConfirmation: response.session == null);
+  }
+
+  @override
+  Future<void> sendPasswordReset({required String email}) {
+    return _client.auth.resetPasswordForEmail(email);
+  }
+
+  @override
   Future<void> signOut() {
     return _client.auth.signOut();
   }

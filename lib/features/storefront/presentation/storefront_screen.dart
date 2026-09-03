@@ -192,9 +192,9 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
     if (accessToken == null || accessToken.isEmpty) {
       if (mounted) {
         final activeBranchId = widget.branchId ?? '';
-        context.push(
-          '/account?tenantSlug=${widget.tenantSlug}${activeBranchId.isEmpty ? '' : '&branchId=$activeBranchId'}',
-        );
+        final back =
+            '/storefront/${widget.tenantSlug}${activeBranchId.isEmpty ? '' : '?branchId=$activeBranchId'}';
+        context.push('/login?redirect=${Uri.encodeComponent(back)}');
       }
       return;
     }

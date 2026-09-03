@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_session.dart';
 import '../../../core/theme/app_colors.dart';
@@ -36,13 +39,9 @@ class AccountScreen extends StatefulWidget {
 }
 
 class _AccountScreenState extends State<AccountScreen> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
   late final CustomerController _customerController;
+  StreamSubscription<AuthAccountState>? _authSubscription;
 
-  bool _submitting = false;
-  String? _errorMessage;
   Future<CustomerContextPayload?>? _customerFuture;
 
   @override
@@ -52,55 +51,35 @@ class _AccountScreenState extends State<AccountScreen> {
       widget.customerApi,
       widget.authSession,
     );
+
+    if (widget.authAccountService.currentState().isAuthenticated) {
+      _customerFuture = _customerController.load();
+    }
+
+    // The backend profile is only meaningful while a session exists. Refresh it
+    // when the customer signs in from `/login`; drop it on sign-out.
+    _authSubscription = widget.authAccountService.authStateChanges().listen((
+      state,
+    ) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _customerFuture = state.isAuthenticated
+            ? _customerController.load()
+            : null;
+      });
+    });
   }
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
+    _authSubscription?.cancel();
     super.dispose();
-  }
-
-  Future<void> _signIn() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    setState(() {
-      _submitting = true;
-      _errorMessage = null;
-    });
-
-    try {
-      await widget.authAccountService.signInWithEmailPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
-      if (mounted) {
-        setState(() {
-          _customerFuture = _customerController.load();
-        });
-      }
-    } catch (error) {
-      setState(() {
-        _errorMessage = '$error';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _submitting = false;
-        });
-      }
-    }
   }
 
   Future<void> _signOut() async {
     await widget.authAccountService.signOut();
-    if (mounted) {
-      setState(() {
-        _customerFuture = null;
-      });
-    }
   }
 
   @override
@@ -166,14 +145,7 @@ class _AccountScreenState extends State<AccountScreen> {
                     onSignOut: _signOut,
                   )
                 else
-                  _SignInCard(
-                    formKey: _formKey,
-                    emailController: _emailController,
-                    passwordController: _passwordController,
-                    submitting: _submitting,
-                    errorMessage: _errorMessage,
-                    onSubmit: _signIn,
-                  ),
+                  const _SignInPromptCard(),
               ],
             );
           },
@@ -196,6 +168,38 @@ class _ConfigWarningCard extends StatelessWidget {
         child: Text(
           'Falta configurar SUPABASE_URL y SUPABASE_ANON_KEY en .env para habilitar autenticacion real.',
           style: theme.textTheme.bodyMedium,
+        ),
+      ),
+    );
+  }
+}
+
+class _SignInPromptCard extends StatelessWidget {
+  const _SignInPromptCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('No has iniciado sesion', style: theme.textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Text(
+              'Inicia sesion o crea una cuenta para gestionar tu bolsa, pagar y '
+              'seguir tus pedidos.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => context.push('/login'),
+              child: const Text('Iniciar sesion'),
+            ),
+          ],
         ),
       ),
     );
@@ -393,82 +397,6 @@ class _ProfileRow extends StatelessWidget {
           ),
           Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
         ],
-      ),
-    );
-  }
-}
-
-class _SignInCard extends StatelessWidget {
-  const _SignInCard({
-    required this.formKey,
-    required this.emailController,
-    required this.passwordController,
-    required this.submitting,
-    required this.errorMessage,
-    required this.onSubmit,
-  });
-
-  final GlobalKey<FormState> formKey;
-  final TextEditingController emailController;
-  final TextEditingController passwordController;
-  final bool submitting;
-  final String? errorMessage;
-  final Future<void> Function() onSubmit;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Iniciar sesion', style: theme.textTheme.titleLarge),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'Email'),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Ingresa tu email';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Password'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Ingresa tu password';
-                  }
-                  return null;
-                },
-              ),
-              if (errorMessage != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  errorMessage!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.red.shade700,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: submitting ? null : onSubmit,
-                child: Text(submitting ? 'Ingresando...' : 'Entrar'),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
