@@ -8,6 +8,7 @@ import '../core/config/app_config.dart';
 import '../core/location/location_service.dart';
 import '../features/account/presentation/account_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
+import '../features/auth/presentation/reset_password_screen.dart';
 import '../features/bag/infrastructure/bag_api.dart';
 import '../features/bag/application/bag_count_controller.dart';
 import '../features/bag/presentation/bag_screen.dart';
@@ -63,6 +64,11 @@ class AppRouter {
                hasSupabaseConfig: config.hasSupabaseConfig,
                redirectLocation: state.uri.queryParameters['redirect'],
              ),
+           ),
+           GoRoute(
+             path: '/reset-password',
+             builder: (context, state) =>
+                 ResetPasswordScreen(authAccountService: authAccountService),
            ),
            GoRoute(
              path: '/marketplace',

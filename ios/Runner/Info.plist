@@ -18,6 +18,22 @@
 	<string>vz_food</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<!-- Supabase Auth deep link for email confirmation and password recovery.
+	     Keep the scheme in sync with AUTH_REDIRECT_URL and the project's
+	     allow-listed redirect URLs. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.vzfood.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>vzfood</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>

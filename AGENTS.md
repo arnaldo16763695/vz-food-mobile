@@ -43,12 +43,16 @@ Use names like these in mobile configuration:
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 - `API_BASE_URL`
+- `AUTH_REDIRECT_URL`
 
 Example intent:
 
 - `SUPABASE_URL`: Supabase project URL
 - `SUPABASE_ANON_KEY`: public anon key for mobile auth
 - `API_BASE_URL`: base URL of the web/backend project that serves `/api/mobile/...`
+- `AUTH_REDIRECT_URL`: deep link Supabase Auth redirects to after email confirmation
+  and password recovery (default `vzfood://auth-callback`); must be allow-listed in the
+  Supabase project and registered as a native URL scheme on Android/iOS
 
 ## Current API Surfaces
 

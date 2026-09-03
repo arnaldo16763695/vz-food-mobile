@@ -24,7 +24,11 @@ ever disagree, `AGENTS.md` wins and this file should be updated to match.
 ## Backend Contract
 
 - Base URLs/keys come from environment, never hardcoded. Env vars: `SUPABASE_URL`,
-  `SUPABASE_ANON_KEY`, `API_BASE_URL` (see `.env.example`, loaded via `flutter_dotenv`).
+  `SUPABASE_ANON_KEY`, `API_BASE_URL`, `AUTH_REDIRECT_URL` (see `.env.example`, loaded
+  via `flutter_dotenv`). `AUTH_REDIRECT_URL` is the deep link Supabase Auth returns to
+  after email confirmation / password recovery; keep it in sync with the Supabase
+  project's allow-listed redirect URLs and the native scheme in
+  `AndroidManifest.xml` / `Info.plist`.
 - Never use service-role keys in this app.
 - Backend is the source of truth for business data and order lifecycle; don't duplicate its rules.
 - Docs: `https://vzfood.ajedev.com/mobile-api-docs`, OpenAPI at `https://vzfood.ajedev.com/api/mobile/openapi`.

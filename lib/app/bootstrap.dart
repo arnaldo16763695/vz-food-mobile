@@ -61,7 +61,10 @@ Future<BootstrapData> bootstrapApp() async {
       ? SupabaseAuthSession(Supabase.instance.client)
       : NoopAuthSession();
   final authAccountService = supabaseReady
-      ? SupabaseAccountService(Supabase.instance.client)
+      ? SupabaseAccountService(
+          Supabase.instance.client,
+          authRedirectUrl: config.authRedirectUrl,
+        )
       : _NoopAuthAccountService();
   final locationService = GeolocatorLocationService();
   final homeApi = HomeApi(httpClient.dio);
@@ -123,6 +126,9 @@ class _NoopAuthAccountService implements AuthAccountService {
   }
 
   @override
+  Stream<AuthLifecycleEvent> lifecycleEvents() => const Stream.empty();
+
+  @override
   AuthAccountState currentState() {
     return const AuthAccountState(isAuthenticated: false);
   }
@@ -145,6 +151,11 @@ class _NoopAuthAccountService implements AuthAccountService {
 
   @override
   Future<void> sendPasswordReset({required String email}) async {
+    throw StateError('Supabase is not configured.');
+  }
+
+  @override
+  Future<void> updatePassword({required String newPassword}) async {
     throw StateError('Supabase is not configured.');
   }
 

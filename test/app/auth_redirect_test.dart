@@ -104,6 +104,30 @@ void main() {
       );
     });
 
+    test('sends signed-out customers off /reset-password to /login', () {
+      expect(
+        resolveAuthRedirect(
+          routePattern: '/reset-password',
+          location: Uri.parse('/reset-password'),
+          isAuthenticated: false,
+          hasSupabaseConfig: true,
+        ),
+        '/login',
+      );
+    });
+
+    test('allows /reset-password with a (recovery) session', () {
+      expect(
+        resolveAuthRedirect(
+          routePattern: '/reset-password',
+          location: Uri.parse('/reset-password'),
+          isAuthenticated: true,
+          hasSupabaseConfig: true,
+        ),
+        isNull,
+      );
+    });
+
     test('keeps signed-out customers on /login', () {
       expect(
         resolveAuthRedirect(

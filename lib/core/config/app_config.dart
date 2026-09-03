@@ -5,11 +5,17 @@ class AppConfig {
     required this.apiBaseUrl,
     required this.supabaseUrl,
     required this.supabaseAnonKey,
+    required this.authRedirectUrl,
   });
 
   final String apiBaseUrl;
   final String supabaseUrl;
   final String supabaseAnonKey;
+
+  /// Deep link Supabase Auth redirects back to after email confirmation or
+  /// password recovery. Keep it in sync with the Supabase project's allow-listed
+  /// redirect URLs and the native URL scheme on Android/iOS.
+  final String authRedirectUrl;
 
   factory AppConfig.fromEnvironment() {
     // Local development should be able to run from a checked-in structure plus a
@@ -19,6 +25,10 @@ class AppConfig {
       apiBaseUrl: _readValue('API_BASE_URL', fallback: 'http://localhost:3000'),
       supabaseUrl: _readValue('SUPABASE_URL'),
       supabaseAnonKey: _readValue('SUPABASE_ANON_KEY'),
+      authRedirectUrl: _readValue(
+        'AUTH_REDIRECT_URL',
+        fallback: 'vzfood://auth-callback',
+      ),
     );
   }
 

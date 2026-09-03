@@ -34,6 +34,7 @@ Dio _dioThatFails(DioException Function(RequestOptions options) buildError) {
       apiBaseUrl: 'https://example.test',
       supabaseUrl: '',
       supabaseAnonKey: '',
+      authRedirectUrl: 'vzfood://auth-callback',
     ),
   );
   client.dio.httpClientAdapter = _FailingAdapter(buildError);

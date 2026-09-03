@@ -9,6 +9,11 @@ class NoopAuthSession implements AuthSession {
 
 abstract class AuthAccountService {
   Stream<AuthAccountState> authStateChanges();
+
+  /// Coarse auth lifecycle used for app-wide reactions such as routing to the
+  /// "set new password" screen when a recovery deep link opens the app.
+  Stream<AuthLifecycleEvent> lifecycleEvents();
+
   AuthAccountState currentState();
   Future<void> signInWithEmailPassword({
     required String email,
@@ -19,6 +24,11 @@ abstract class AuthAccountService {
     required String password,
   });
   Future<void> sendPasswordReset({required String email});
+
+  /// Sets a new password for the current session. Used after a recovery deep
+  /// link, where the session is short-lived and only good for this call.
+  Future<void> updatePassword({required String newPassword});
+
   Future<void> signOut();
 }
 
@@ -33,6 +43,8 @@ class AuthAccountState {
   final String? email;
   final String? userId;
 }
+
+enum AuthLifecycleEvent { signedIn, signedOut, passwordRecovery, other }
 
 /// Outcome of a sign-up attempt. When the backend requires email confirmation
 /// the SDK returns a user without a session, so the customer must confirm the
