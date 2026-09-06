@@ -10,6 +10,8 @@ import '../features/account/presentation/account_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/reset_password_screen.dart';
 import '../features/bag/infrastructure/bag_api.dart';
+import '../features/branches/infrastructure/branches_api.dart';
+import '../features/branches/presentation/branch_detail_screen.dart';
 import '../features/bag/application/bag_count_controller.dart';
 import '../features/bag/presentation/bag_screen.dart';
 import '../features/checkout/infrastructure/checkout_api.dart';
@@ -39,6 +41,7 @@ class AppRouter {
     required OrdersApi ordersApi,
     required HomeApi homeApi,
     required BrandsApi brandsApi,
+    required BranchesApi branchesApi,
     required StorefrontApi storefrontApi,
   }) : router = GoRouter(
          refreshListenable: _AuthRefreshListenable(authAccountService),
@@ -74,6 +77,13 @@ class AppRouter {
              path: '/marketplace',
              builder: (context, state) =>
                  MarketplaceScreen(brandsApi: brandsApi),
+           ),
+           GoRoute(
+             path: '/branches/:branchId',
+             builder: (context, state) => BranchDetailScreen(
+               branchesApi: branchesApi,
+               branchId: state.pathParameters['branchId'] ?? '',
+             ),
            ),
            GoRoute(
              path: '/account',

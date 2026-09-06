@@ -4,6 +4,7 @@ import '../core/auth/supabase_auth_service.dart';
 import '../core/config/app_config.dart';
 import '../core/location/location_service.dart';
 import '../core/network/app_http_client.dart';
+import '../features/branches/infrastructure/branches_api.dart';
 import '../features/bag/infrastructure/bag_api.dart';
 import '../features/bag/application/bag_count_controller.dart';
 import '../features/checkout/infrastructure/checkout_api.dart';
@@ -23,6 +24,7 @@ class BootstrapData {
     required this.locationService,
     required this.homeApi,
     required this.brandsApi,
+    required this.branchesApi,
     required this.storefrontApi,
     required this.bagApi,
     required this.bagCountController,
@@ -38,6 +40,7 @@ class BootstrapData {
   final LocationService locationService;
   final HomeApi homeApi;
   final BrandsApi brandsApi;
+  final BranchesApi branchesApi;
   final StorefrontApi storefrontApi;
   final BagApi bagApi;
   final BagCountController bagCountController;
@@ -69,6 +72,7 @@ Future<BootstrapData> bootstrapApp() async {
   final locationService = GeolocatorLocationService();
   final homeApi = HomeApi(httpClient.dio);
   final brandsApi = BrandsApi(httpClient.dio);
+  final branchesApi = BranchesApi(httpClient.dio);
   final storefrontApi = StorefrontApi(httpClient.dio);
   final bagApi = BagApi(httpClient.dio);
   final bagCountController = BagCountController();
@@ -84,6 +88,7 @@ Future<BootstrapData> bootstrapApp() async {
     locationService: locationService,
     homeApi: homeApi,
     brandsApi: brandsApi,
+    branchesApi: branchesApi,
     storefrontApi: storefrontApi,
     bagApi: bagApi,
     bagCountController: bagCountController,

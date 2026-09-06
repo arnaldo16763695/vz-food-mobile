@@ -484,31 +484,53 @@ class _NearbyBranchTile extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.background,
+      child: Material(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(branch.name, style: theme.textTheme.titleLarge),
-            const SizedBox(height: 4),
-            Text(branch.tenant.name, style: theme.textTheme.bodySmall),
-            if (branch.locationLabel.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(branch.locationLabel, style: theme.textTheme.bodyMedium),
-            ],
-            const SizedBox(height: 12),
-            Text(
-              '${branch.distanceKilometers.toStringAsFixed(1)} km · ${branch.etaMinutes} min',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.brandPrimaryDark,
-              ),
+          onTap: branch.id.isEmpty
+              ? null
+              : () => context.push('/branches/${branch.id}'),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.border),
             ),
-          ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        branch.name,
+                        style: theme.textTheme.titleLarge,
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.textMuted,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(branch.tenant.name, style: theme.textTheme.bodySmall),
+                if (branch.locationLabel.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(branch.locationLabel, style: theme.textTheme.bodyMedium),
+                ],
+                const SizedBox(height: 12),
+                Text(
+                  '${branch.distanceKilometers.toStringAsFixed(1)} km · ${branch.etaMinutes} min',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.brandPrimaryDark,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

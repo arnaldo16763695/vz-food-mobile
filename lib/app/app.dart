@@ -29,6 +29,7 @@ class _VzFoodAppState extends State<VzFoodApp> {
       locationService: data.locationService,
       homeApi: data.homeApi,
       brandsApi: data.brandsApi,
+      branchesApi: data.branchesApi,
       storefrontApi: data.storefrontApi,
       authSession: data.authSession,
       authAccountService: data.authAccountService,
