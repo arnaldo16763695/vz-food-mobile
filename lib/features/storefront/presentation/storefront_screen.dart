@@ -144,14 +144,29 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
       return;
     }
 
-    await _openConfigurator(product);
+    await _openConfigurator(product, canAddToBag: true);
   }
 
-  Future<void> _openConfigurator(StorefrontProduct product) async {
+  /// Opens the product sheet as a spec view (image tap / card tap). Always
+  /// available so the customer can inspect ingredients and combo contents; the
+  /// add action inside is disabled when the branch cannot take orders.
+  Future<void> _openProductDetails(StorefrontProduct product) async {
+    final activeBranchId = widget.branchId ?? '';
+    final activeBranch = _payload?.storefront.activeBranch;
+    final canAddToBag =
+        activeBranchId.isNotEmpty && (activeBranch?.acceptingOrders ?? true);
+    await _openConfigurator(product, canAddToBag: canAddToBag);
+  }
+
+  Future<void> _openConfigurator(
+    StorefrontProduct product, {
+    required bool canAddToBag,
+  }) async {
     final configuration = await showModalBottomSheet<_ConfiguredProductResult>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => _ProductConfiguratorSheet(product: product),
+      builder: (context) =>
+          _ProductConfiguratorSheet(product: product, canAddToBag: canAddToBag),
     );
 
     if (configuration == null) {
@@ -344,6 +359,7 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
     return _StorefrontView(
       addingProductId: _addingProductId,
       onAddProduct: _addProduct,
+      onOpenProduct: _openProductDetails,
       onSearchProducts: _searchProducts,
       payload: payload,
       tenantSlug: widget.tenantSlug,
@@ -355,6 +371,7 @@ class _StorefrontView extends StatefulWidget {
   const _StorefrontView({
     required this.addingProductId,
     required this.onAddProduct,
+    required this.onOpenProduct,
     required this.onSearchProducts,
     required this.payload,
     required this.tenantSlug,
@@ -362,6 +379,7 @@ class _StorefrontView extends StatefulWidget {
 
   final String? addingProductId;
   final Future<void> Function(StorefrontProduct product) onAddProduct;
+  final Future<void> Function(StorefrontProduct product) onOpenProduct;
   final Future<List<StorefrontProduct>> Function({
     required String query,
     String? branchId,
@@ -574,6 +592,7 @@ class _StorefrontViewState extends State<_StorefrontView> {
                   addingProductId: widget.addingProductId,
                   canAddToBag: activeBranch?.acceptingOrders ?? false,
                   onAddProduct: widget.onAddProduct,
+                  onOpenProduct: widget.onOpenProduct,
                 ),
             ],
           ),
@@ -1029,53 +1048,20 @@ class _ProductSearchFieldState extends State<_ProductSearchField> {
   }
 }
 
-class _CategorySection extends StatelessWidget {
-  const _CategorySection({
-    required this.addingProductId,
-    required this.onAddProduct,
-    required this.title,
-    required this.products,
-  });
-
-  final String? addingProductId;
-  final Future<void> Function(StorefrontProduct product) onAddProduct;
-  final String title;
-  final List<StorefrontProduct> products;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: theme.textTheme.titleLarge),
-          const SizedBox(height: 12),
-          _TwoColumnProductGrid(
-            products: products,
-            addingProductId: addingProductId,
-            onAddProduct: onAddProduct,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _TwoColumnProductGrid extends StatelessWidget {
   const _TwoColumnProductGrid({
     required this.products,
     required this.addingProductId,
     this.canAddToBag = true,
     required this.onAddProduct,
+    required this.onOpenProduct,
   });
 
   final List<StorefrontProduct> products;
   final String? addingProductId;
   final bool canAddToBag;
   final Future<void> Function(StorefrontProduct product) onAddProduct;
+  final Future<void> Function(StorefrontProduct product) onOpenProduct;
 
   @override
   Widget build(BuildContext context) {
@@ -1099,6 +1085,7 @@ class _TwoColumnProductGrid extends StatelessWidget {
                   isAdding: addingProductId == leftProduct.id,
                   canAddToBag: canAddToBag,
                   onAdd: () => onAddProduct(leftProduct),
+                  onOpenDetails: () => onOpenProduct(leftProduct),
                 ),
               ),
               const SizedBox(width: spacing),
@@ -1110,6 +1097,7 @@ class _TwoColumnProductGrid extends StatelessWidget {
                         isAdding: addingProductId == rightProduct.id,
                         canAddToBag: canAddToBag,
                         onAdd: () => onAddProduct(rightProduct),
+                        onOpenDetails: () => onOpenProduct(rightProduct),
                       ),
               ),
             ],
@@ -1129,67 +1117,23 @@ class _TwoColumnProductGrid extends StatelessWidget {
   }
 }
 
-class _SimpleProductCard extends StatelessWidget {
-  const _SimpleProductCard({
-    required this.product,
-    required this.addingProductId,
-    required this.onAddProduct,
-  });
-
-  final StorefrontProduct product;
-  final String? addingProductId;
-  final Future<void> Function(StorefrontProduct product) onAddProduct;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isAdding = addingProductId == product.id;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(product.name, style: theme.textTheme.titleLarge),
-            const SizedBox(height: 6),
-            if (product.description.trim().isNotEmpty)
-              Text(product.description, style: theme.textTheme.bodyMedium),
-            const SizedBox(height: 10),
-            Text(
-              product.basePrice,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: AppColors.brandPrimaryDark,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: ElevatedButton(
-                onPressed: isAdding ? null : () => onAddProduct(product),
-                child: Text(isAdding ? 'Agregando...' : 'Agregar'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _ProductTile extends StatelessWidget {
   const _ProductTile({
     required this.product,
     required this.isAdding,
     required this.canAddToBag,
     required this.onAdd,
+    required this.onOpenDetails,
   });
 
   final StorefrontProduct product;
   final bool isAdding;
   final bool canAddToBag;
   final VoidCallback onAdd;
+
+  /// Tapping anywhere on the card except the add button opens the product
+  /// detail sheet (ingredients, combo contents).
+  final VoidCallback onOpenDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -1220,155 +1164,159 @@ class _ProductTile extends StatelessWidget {
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(20),
-                ),
-                child: AspectRatio(
-                  aspectRatio: 1,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      hasImage
-                          ? Image.network(
-                              normalizedImageUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return const _ProductImagePlaceholder();
-                              },
-                              loadingBuilder:
-                                  (context, child, loadingProgress) {
-                                    if (loadingProgress == null) {
-                                      return child;
-                                    }
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: onOpenDetails,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(20),
+                  ),
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        hasImage
+                            ? Image.network(
+                                normalizedImageUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const _ProductImagePlaceholder();
+                                },
+                                loadingBuilder:
+                                    (context, child, loadingProgress) {
+                                      if (loadingProgress == null) {
+                                        return child;
+                                      }
 
-                                    return const _ProductImagePlaceholder();
-                                  },
-                            )
-                          : const _ProductImagePlaceholder(),
-                      const Positioned.fill(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [Color(0x05000000), Color(0x36000000)],
+                                      return const _ProductImagePlaceholder();
+                                    },
+                              )
+                            : const _ProductImagePlaceholder(),
+                        const Positioned.fill(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [Color(0x05000000), Color(0x36000000)],
+                              ),
                             ),
                           ),
                         ),
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: _ModernBadge(
+                            label: statusLabel,
+                            isAccent: product.requiresCustomization,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F6F3),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          product.category,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: _ModernBadge(
-                          label: statusLabel,
-                          isAccent: product.requiresCustomization,
+                      const SizedBox(height: 6),
+                      Text(
+                        product.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontSize: 15,
+                          height: 1.15,
+                        ),
+                      ),
+                      if (product.description.trim().isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          product.description,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textMuted,
+                            fontSize: 12,
+                            height: 1.25,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Text(
+                        product.basePrice,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: AppColors.brandPrimaryDark,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.tonal(
+                          onPressed: !canAddToBag || isAdding ? null : onAdd,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.brandPrimary.withValues(
+                              alpha: 0.14,
+                            ),
+                            foregroundColor: AppColors.brandPrimaryDark,
+                            padding: const EdgeInsets.symmetric(vertical: 9),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            textStyle: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isAdding
+                                    ? Icons.hourglass_top_rounded
+                                    : Icons.add_rounded,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                !canAddToBag
+                                    ? 'Sucursal cerrada'
+                                    : (isAdding ? 'Agregando' : 'Agregar'),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF1F6F3),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        product.category,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      product.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontSize: 15,
-                        height: 1.15,
-                      ),
-                    ),
-                    if (product.description.trim().isNotEmpty) ...[
-                      const SizedBox(height: 3),
-                      Text(
-                        product.description,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textMuted,
-                          fontSize: 12,
-                          height: 1.25,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 8),
-                    Text(
-                      product.basePrice,
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: AppColors.brandPrimaryDark,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.tonal(
-                        onPressed: !canAddToBag || isAdding ? null : onAdd,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.brandPrimary.withValues(
-                            alpha: 0.14,
-                          ),
-                          foregroundColor: AppColors.brandPrimaryDark,
-                          padding: const EdgeInsets.symmetric(vertical: 9),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          textStyle: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              isAdding
-                                  ? Icons.hourglass_top_rounded
-                                  : Icons.add_rounded,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              !canAddToBag
-                                  ? 'Sucursal cerrada'
-                                  : (isAdding ? 'Agregando' : 'Agregar'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1582,9 +1530,17 @@ class _ConfiguredProductResult {
 }
 
 class _ProductConfiguratorSheet extends StatefulWidget {
-  const _ProductConfiguratorSheet({required this.product});
+  const _ProductConfiguratorSheet({
+    required this.product,
+    this.canAddToBag = true,
+  });
 
   final StorefrontProduct product;
+
+  /// When false the sheet is a read-only spec view (branch closed or none
+  /// selected): the customer can inspect ingredients and combo contents but the
+  /// add action is disabled.
+  final bool canAddToBag;
 
   @override
   State<_ProductConfiguratorSheet> createState() =>
@@ -1904,11 +1860,22 @@ class _ProductConfiguratorSheetState extends State<_ProductConfiguratorSheet> {
                 ),
               ],
               const SizedBox(height: 18),
+              if (!widget.canAddToBag) ...[
+                Text(
+                  'Esta sucursal no esta aceptando pedidos ahora mismo.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _submit,
-                  child: const Text('Agregar a la bolsa'),
+                  onPressed: widget.canAddToBag ? _submit : null,
+                  child: Text(
+                    widget.canAddToBag ? 'Agregar a la bolsa' : 'No disponible',
+                  ),
                 ),
               ),
             ],
