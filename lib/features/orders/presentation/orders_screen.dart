@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -11,6 +13,10 @@ import '../../bag/infrastructure/bag_api.dart';
 import '../application/orders_controller.dart';
 import '../domain/orders_models.dart';
 import '../infrastructure/orders_api.dart';
+
+/// Orders per page. The backend returns the full history in one call, so
+/// paging is done client-side to keep the list short and scannable.
+const _ordersPageSize = 6;
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({
@@ -37,6 +43,8 @@ class OrdersScreen extends StatefulWidget {
 class _OrdersScreenState extends State<OrdersScreen> {
   late final OrdersController _controller;
   late Future<OrdersPayload> _future;
+  final _scrollController = ScrollController();
+  int _page = 0;
 
   @override
   void initState() {
@@ -45,12 +53,19 @@ class _OrdersScreenState extends State<OrdersScreen> {
     _future = _load();
   }
 
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   Future<OrdersPayload> _load() {
     return _controller.loadOrders(tenantSlug: widget.tenantSlug);
   }
 
   void _retry() {
     setState(() {
+      _page = 0;
       _future = _load();
     });
   }
@@ -58,15 +73,30 @@ class _OrdersScreenState extends State<OrdersScreen> {
   Future<void> _refresh() async {
     final future = _load();
     setState(() {
+      _page = 0;
       _future = future;
     });
     await future;
   }
 
+  void _goToPage(int page) {
+    setState(() => _page = page);
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+  }
+
+  void _openOrder(OrderSummary order) {
+    final branchQuery = widget.branchId == null || widget.branchId!.isEmpty
+        ? ''
+        : '?branchId=${widget.branchId}';
+    context.push(
+      '/storefront/${widget.tenantSlug}/orders/${order.id}$branchQuery',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(title: const Text('Pedidos')),
       bottomNavigationBar: CustomerFooterNav(
@@ -94,52 +124,86 @@ class _OrdersScreenState extends State<OrdersScreen> {
               return const _OrdersEmpty();
             }
 
+            final orders = payload.orders;
+            final totalPages = math.max(
+              1,
+              (orders.length / _ordersPageSize).ceil(),
+            );
+            final page = _page.clamp(0, totalPages - 1);
+            final start = page * _ordersPageSize;
+            final pageOrders = orders.sublist(
+              start,
+              math.min(start + _ordersPageSize, orders.length),
+            );
+
             return RefreshIndicator(
               onRefresh: _refresh,
               child: ListView(
+                controller: _scrollController,
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: AppColors.textPrimary,
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Tus pedidos',
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Seguimiento del historial del cliente para este tenant.',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ...payload.orders.map(
+                  _OrdersHeader(total: orders.length),
+                  const SizedBox(height: 12),
+                  ...pageOrders.map(
                     (order) => _OrderSummaryCard(
                       order: order,
-                      onTap: () => context.push(
-                        '/storefront/${widget.tenantSlug}/orders/${order.id}${widget.branchId == null || widget.branchId!.isEmpty ? '' : '?branchId=${widget.branchId}'}',
-                      ),
+                      onTap: () => _openOrder(order),
                     ),
                   ),
+                  if (totalPages > 1)
+                    _PaginationBar(
+                      page: page,
+                      totalPages: totalPages,
+                      onPrev: page > 0 ? () => _goToPage(page - 1) : null,
+                      onNext: page < totalPages - 1
+                          ? () => _goToPage(page + 1)
+                          : null,
+                    ),
                 ],
               ),
             );
           },
         ),
       ),
+    );
+  }
+}
+
+class _OrdersHeader extends StatelessWidget {
+  const _OrdersHeader({required this.total});
+
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Tus pedidos',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.brandPrimary.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            '$total',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppColors.brandPrimaryDark,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -155,13 +219,19 @@ class _OrderSummaryCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -175,7 +245,6 @@ class _OrderSummaryCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
                     Text(
                       AppFormatters.currency(order.totalAmount),
                       style: theme.textTheme.bodyLarge?.copyWith(
@@ -185,16 +254,16 @@ class _OrderSummaryCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
                   children: [
-                    StatusChip(value: order.status),
-                    StatusChip(value: order.fulfillmentType),
+                    StatusChip(value: order.status, dense: true),
+                    StatusChip(value: order.fulfillmentType, dense: true),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   '${order.itemCount} items · ${AppFormatters.dateTime(order.placedAt)}',
                   style: theme.textTheme.bodySmall?.copyWith(
@@ -205,6 +274,58 @@ class _OrderSummaryCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PaginationBar extends StatelessWidget {
+  const _PaginationBar({
+    required this.page,
+    required this.totalPages,
+    required this.onPrev,
+    required this.onNext,
+  });
+
+  final int page;
+  final int totalPages;
+  final VoidCallback? onPrev;
+  final VoidCallback? onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          TextButton.icon(
+            onPressed: onPrev,
+            icon: const Icon(Icons.chevron_left_rounded, size: 20),
+            label: const Text('Anterior'),
+            style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+          ),
+          Text(
+            'Pagina ${page + 1} de $totalPages',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppColors.textMuted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          TextButton(
+            onPressed: onNext,
+            style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Siguiente'),
+                Icon(Icons.chevron_right_rounded, size: 20),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

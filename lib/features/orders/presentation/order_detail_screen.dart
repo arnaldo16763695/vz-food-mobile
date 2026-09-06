@@ -12,6 +12,9 @@ import '../application/orders_controller.dart';
 import '../domain/orders_models.dart';
 import '../infrastructure/orders_api.dart';
 
+/// Items shown before the "ver todos" expander kicks in.
+const _visibleItemLimit = 8;
+
 class OrderDetailScreen extends StatefulWidget {
   const OrderDetailScreen({
     super.key,
@@ -43,6 +46,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   String? _paymentProofPath;
   String _paymentMethod = 'mobile_payment';
   bool _uploadingProof = false;
+  bool _showAllItems = false;
 
   @override
   void initState() {
@@ -136,8 +140,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(title: const Text('Detalle del pedido')),
       bottomNavigationBar: CustomerFooterNav(
@@ -168,236 +170,28 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             final order = payload.order;
 
             return ListView(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               children: [
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: AppColors.brandPrimaryDark,
-                    borderRadius: BorderRadius.circular(28),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Pedido #${order.orderNumber}',
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        AppFormatters.dateTime(order.placedAt),
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          StatusChip(value: order.status),
-                          StatusChip(value: order.paymentStatus),
-                        ],
-                      ),
-                    ],
-                  ),
+                _OrderHeader(order: order),
+                const SizedBox(height: 12),
+                _CustomerCard(order: order),
+                const SizedBox(height: 12),
+                _ReceiptCard(
+                  order: order,
+                  paymentMethod: _paymentMethod,
+                  paymentProofPath: _paymentProofPath,
+                  uploading: _uploadingProof,
+                  onMethodChanged: (value) =>
+                      setState(() => _paymentMethod = value),
+                  onPick: _pickPaymentProof,
+                  onUpload: _uploadingProof ? null : _uploadPaymentProof,
                 ),
-                const SizedBox(height: 20),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Cliente', style: theme.textTheme.titleLarge),
-                        const SizedBox(height: 12),
-                        _DetailRow(label: 'Nombre', value: order.customerName),
-                        _DetailRow(
-                          label: 'Email',
-                          value: order.customerEmail ?? 'Sin email',
-                        ),
-                        _DetailRow(
-                          label: 'Telefono',
-                          value: order.customerPhone ?? 'Sin telefono',
-                        ),
-                        _DetailRow(
-                          label: 'Entrega',
-                          value: localizedStatusLabel(order.fulfillmentType),
-                        ),
-                        _DetailRow(
-                          label: 'Pago',
-                          value: order.paymentMethod == null
-                              ? 'Sin metodo'
-                              : localizedStatusLabel(order.paymentMethod!),
-                        ),
-                        _DetailRow(
-                          label: 'Subtotal',
-                          value: AppFormatters.currency(order.subtotalAmount),
-                        ),
-                        _DetailRow(
-                          label: 'Total',
-                          value: AppFormatters.currency(order.totalAmount),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Comprobante', style: theme.textTheme.titleLarge),
-                        const SizedBox(height: 12),
-                        if (order.paymentReceiptImageUrl != null)
-                          Text(
-                            'Comprobante actual disponible',
-                            style: theme.textTheme.bodyMedium,
-                          )
-                        else
-                          Text(
-                            'Aun no hay comprobante cargado para este pedido.',
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                        if (order.paymentRejectionReason != null &&
-                            order.paymentRejectionReason!
-                                .trim()
-                                .isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            'Motivo de rechazo: ${order.paymentRejectionReason}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: Colors.red.shade700,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 16),
-                        DropdownButtonFormField<String>(
-                          initialValue: _paymentMethod,
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'mobile_payment',
-                              child: Text('Pago movil'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'bank_transfer',
-                              child: Text('Transferencia bancaria'),
-                            ),
-                          ],
-                          onChanged: (value) {
-                            if (value == null) {
-                              return;
-                            }
-                            setState(() {
-                              _paymentMethod = value;
-                            });
-                          },
-                          decoration: const InputDecoration(
-                            labelText: 'Metodo de pago',
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        OutlinedButton(
-                          onPressed: _pickPaymentProof,
-                          child: Text(
-                            _paymentProofPath == null
-                                ? 'Adjuntar comprobante'
-                                : 'Cambiar comprobante',
-                          ),
-                        ),
-                        if (_paymentProofPath != null) ...[
-                          const SizedBox(height: 10),
-                          Text(
-                            _paymentProofPath!,
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ],
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _uploadingProof
-                              ? null
-                              : _uploadPaymentProof,
-                          child: Text(
-                            _uploadingProof
-                                ? 'Subiendo...'
-                                : 'Subir o reemplazar comprobante',
-                          ),
-                        ),
-                        if (order.paymentReceiptSubmissions.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          Text('Historial', style: theme.textTheme.titleLarge),
-                          const SizedBox(height: 12),
-                          ...order.paymentReceiptSubmissions.map(
-                            (submission) => Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: Text(
-                                '${localizedStatusLabel(submission.paymentMethod)} · ${localizedStatusLabel(submission.reviewStatus)}',
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Items', style: theme.textTheme.titleLarge),
-                        const SizedBox(height: 12),
-                        ...order.items.map(
-                          (item) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item.productName,
-                                  style: theme.textTheme.bodyLarge,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${item.quantity}x · ${AppFormatters.currency(item.lineTotal)}',
-                                  style: theme.textTheme.bodySmall,
-                                ),
-                                for (final component in item.comboComponents)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 2),
-                                    child: Text(
-                                      '• ${component.label}',
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                            color: AppColors.textMuted,
-                                          ),
-                                    ),
-                                  ),
-                                for (final modifier in item.modifiers)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 2),
-                                    child: Text(
-                                      '+ ${modifier.label}',
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                            color: AppColors.textMuted,
-                                          ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                const SizedBox(height: 12),
+                _ItemsCard(
+                  items: order.items,
+                  showAll: _showAllItems,
+                  onToggleShowAll: () =>
+                      setState(() => _showAllItems = !_showAllItems),
                 ),
               ],
             );
@@ -408,25 +202,431 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 }
 
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
+class _OrderHeader extends StatelessWidget {
+  const _OrderHeader({required this.order});
+
+  final OrderDetail order;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.brandPrimaryDark,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  'Pedido #${order.orderNumber}',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Text(
+                AppFormatters.currency(order.totalAmount),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            AppFormatters.dateTime(order.placedAt),
+            style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              StatusChip(value: order.status, dense: true),
+              StatusChip(value: order.paymentStatus, dense: true),
+              StatusChip(value: order.fulfillmentType, dense: true),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomerCard extends StatelessWidget {
+  const _CustomerCard({required this.order});
+
+  final OrderDetail order;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionCard(
+      title: 'Cliente',
+      children: [
+        _CompactRow(label: 'Nombre', value: order.customerName),
+        _CompactRow(label: 'Email', value: order.customerEmail ?? 'Sin email'),
+        _CompactRow(
+          label: 'Telefono',
+          value: order.customerPhone ?? 'Sin telefono',
+        ),
+        _CompactRow(
+          label: 'Entrega',
+          value: localizedStatusLabel(order.fulfillmentType),
+        ),
+        _CompactRow(
+          label: 'Pago',
+          value: order.paymentMethod == null
+              ? 'Sin metodo'
+              : localizedStatusLabel(order.paymentMethod!),
+        ),
+        _CompactRow(
+          label: 'Subtotal',
+          value: AppFormatters.currency(order.subtotalAmount),
+        ),
+        _CompactRow(
+          label: 'Total',
+          value: AppFormatters.currency(order.totalAmount),
+          emphasize: true,
+        ),
+      ],
+    );
+  }
+}
+
+class _ReceiptCard extends StatelessWidget {
+  const _ReceiptCard({
+    required this.order,
+    required this.paymentMethod,
+    required this.paymentProofPath,
+    required this.uploading,
+    required this.onMethodChanged,
+    required this.onPick,
+    required this.onUpload,
+  });
+
+  final OrderDetail order;
+  final String paymentMethod;
+  final String? paymentProofPath;
+  final bool uploading;
+  final ValueChanged<String> onMethodChanged;
+  final VoidCallback onPick;
+  final VoidCallback? onUpload;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasRejection =
+        order.paymentRejectionReason != null &&
+        order.paymentRejectionReason!.trim().isNotEmpty;
+
+    return _SectionCard(
+      title: 'Comprobante',
+      children: [
+        Text(
+          order.paymentReceiptImageUrl != null
+              ? 'Comprobante actual disponible.'
+              : 'Aun no hay comprobante cargado.',
+          style: theme.textTheme.bodySmall,
+        ),
+        if (hasRejection) ...[
+          const SizedBox(height: 6),
+          Text(
+            'Motivo de rechazo: ${order.paymentRejectionReason}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: Colors.red.shade700,
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          initialValue: paymentMethod,
+          isDense: true,
+          items: const [
+            DropdownMenuItem(
+              value: 'mobile_payment',
+              child: Text('Pago movil'),
+            ),
+            DropdownMenuItem(
+              value: 'bank_transfer',
+              child: Text('Transferencia bancaria'),
+            ),
+          ],
+          onChanged: (value) {
+            if (value != null) {
+              onMethodChanged(value);
+            }
+          },
+          decoration: const InputDecoration(
+            labelText: 'Metodo de pago',
+            isDense: true,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: onPick,
+                child: Text(paymentProofPath == null ? 'Adjuntar' : 'Cambiar'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: onUpload,
+                child: Text(uploading ? 'Subiendo...' : 'Enviar'),
+              ),
+            ),
+          ],
+        ),
+        if (paymentProofPath != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            paymentProofPath!.split(RegExp(r'[\\/]')).last,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppColors.textMuted,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+        if (order.paymentReceiptSubmissions.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Historial',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          ...order.paymentReceiptSubmissions.map(
+            (submission) => Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${localizedStatusLabel(submission.paymentMethod)} · '
+                      '${localizedStatusLabel(submission.reviewStatus)}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                  Text(
+                    AppFormatters.dateTime(submission.submittedAt),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ItemsCard extends StatelessWidget {
+  const _ItemsCard({
+    required this.items,
+    required this.showAll,
+    required this.onToggleShowAll,
+  });
+
+  final List<OrderDetailItem> items;
+  final bool showAll;
+  final VoidCallback onToggleShowAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final overLimit = items.length > _visibleItemLimit;
+    final visible = showAll || !overLimit
+        ? items
+        : items.take(_visibleItemLimit).toList(growable: false);
+    final hiddenCount = items.length - visible.length;
+
+    return _SectionCard(
+      title: 'Productos (${items.length})',
+      children: [
+        for (var i = 0; i < visible.length; i++) ...[
+          if (i > 0)
+            const Divider(height: 16, thickness: 0.5, color: AppColors.border),
+          _ItemRow(item: visible[i]),
+        ],
+        if (overLimit) ...[
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: onToggleShowAll,
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              ),
+              child: Text(
+                showAll ? 'Ver menos' : 'Ver $hiddenCount productos mas',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ItemRow extends StatelessWidget {
+  const _ItemRow({required this.item});
+
+  final OrderDetailItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${item.quantity}x ',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.textMuted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Expanded(
+              child: Text(
+                item.productName,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              AppFormatters.currency(item.lineTotal),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: AppColors.brandPrimaryDark,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        for (final component in item.comboComponents)
+          Padding(
+            padding: const EdgeInsets.only(top: 2, left: 22),
+            child: Text(
+              '• ${component.label}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: AppColors.textMuted,
+              ),
+            ),
+          ),
+        for (final modifier in item.modifiers)
+          Padding(
+            padding: const EdgeInsets.only(top: 2, left: 22),
+            child: Text(
+              '+ ${modifier.label}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: AppColors.textMuted,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _CompactRow extends StatelessWidget {
+  const _CompactRow({
+    required this.label,
+    required this.value,
+    this.emphasize = false,
+  });
 
   final String label;
   final String value;
+  final bool emphasize;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 90,
-            child: Text(label, style: theme.textTheme.bodySmall),
+            width: 76,
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: AppColors.textMuted,
+              ),
+            ),
           ),
-          Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
+          Expanded(
+            child: Text(
+              value,
+              style: emphasize
+                  ? theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    )
+                  : theme.textTheme.bodyMedium,
+            ),
+          ),
         ],
       ),
     );
