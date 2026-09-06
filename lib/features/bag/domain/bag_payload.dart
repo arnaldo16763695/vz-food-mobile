@@ -101,6 +101,29 @@ class BagItem {
   }
 }
 
+/// Result of a bag mutation (`add`, `replace`, `decrement`, `remove`, `clear`).
+/// The backend answers `{ok:false, error:"..."}` for business rejections
+/// (out of stock, branch closed, ...) with a 2xx, so callers must check [ok]
+/// rather than assume success from the status code.
+class BagMutationResult {
+  const BagMutationResult({required this.ok, this.error, this.quantity});
+
+  final bool ok;
+  final String? error;
+  final int? quantity;
+
+  /// Used when the endpoint returns no body (e.g. 204) — that still means done.
+  static const BagMutationResult empty = BagMutationResult(ok: true);
+
+  factory BagMutationResult.fromJson(Map<String, dynamic> json) {
+    return BagMutationResult(
+      ok: json['ok'] as bool? ?? false,
+      error: json['error'] as String?,
+      quantity: (json['quantity'] as num?)?.toInt(),
+    );
+  }
+}
+
 class BagModifierSelection {
   const BagModifierSelection({
     required this.modifierGroupId,

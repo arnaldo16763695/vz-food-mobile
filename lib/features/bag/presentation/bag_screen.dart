@@ -44,6 +44,7 @@ class _BagScreenState extends State<BagScreen> {
   StorefrontBranch? _branch;
   Object? _loadError;
   bool _loading = true;
+  bool _clearing = false;
   String? _mutatingItemId;
 
   @override
@@ -273,10 +274,129 @@ class _BagScreenState extends State<BagScreen> {
     );
   }
 
+  /// Rolls the optimistic bag state back to [previousPayload] and tells the
+  /// customer why. Shared by the network-failure path and the backend
+  /// "ok:false" path (out of stock, branch just closed, ...).
+  void _restoreBag(
+    BagLoadResult currentResult,
+    BagPayload previousPayload, {
+    String? message,
+  }) {
+    setState(() {
+      _result = BagLoadResult(
+        status: currentResult.status,
+        payload: previousPayload,
+      );
+    });
+    widget.bagCountController.setCountForContext(
+      tenantSlug: widget.tenantSlug,
+      branchId: widget.branchId,
+      count: previousPayload.items.fold<int>(
+        0,
+        (sum, item) => sum + item.quantity,
+      ),
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message != null && message.trim().isNotEmpty
+              ? message
+              : 'No se pudo actualizar la bolsa de compra.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _clearBag() async {
+    final currentResult = _result;
+    final currentPayload = currentResult?.payload;
+    if (currentResult == null ||
+        currentPayload == null ||
+        currentPayload.isEmpty) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Vaciar la bolsa'),
+        content: const Text(
+          'Se quitaran todos los productos de esta sucursal.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Vaciar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    final accessToken = await widget.authSession.getAccessToken();
+    if (accessToken == null || accessToken.isEmpty) {
+      if (mounted) {
+        final back =
+            '/storefront/${widget.tenantSlug}/bag?branchId=${widget.branchId}';
+        context.push('/login?redirect=${Uri.encodeComponent(back)}');
+      }
+      return;
+    }
+
+    final previousPayload = currentPayload;
+    setState(() {
+      _clearing = true;
+      _result = BagLoadResult(
+        status: currentResult.status,
+        payload: currentPayload.copyWith(items: const []),
+      );
+    });
+    widget.bagCountController.setCountForContext(
+      tenantSlug: widget.tenantSlug,
+      branchId: widget.branchId,
+      count: 0,
+    );
+
+    try {
+      final result = await widget.bagApi.clearBag(
+        tenantSlug: widget.tenantSlug,
+        branchId: widget.branchId,
+        accessToken: accessToken,
+      );
+      if (!mounted) {
+        return;
+      }
+      if (!result.ok) {
+        _restoreBag(currentResult, previousPayload, message: result.error);
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _restoreBag(
+        currentResult,
+        previousPayload,
+        message: 'No se pudo vaciar la bolsa: $error',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _clearing = false;
+        });
+      }
+    }
+  }
+
   Future<void> _runBagMutation({
     required String itemId,
     required BagPayload Function(BagPayload payload) optimisticUpdate,
-    required Future<void> Function(String accessToken) action,
+    required Future<BagMutationResult> Function(String accessToken) action,
   }) async {
     final branch = _branch;
     if (branch != null && !branch.acceptingOrders) {
@@ -331,8 +451,13 @@ class _BagScreenState extends State<BagScreen> {
     );
 
     try {
-      await action(accessToken);
+      final result = await action(accessToken);
       if (!mounted) {
+        return;
+      }
+
+      if (!result.ok) {
+        _restoreBag(currentResult, previousPayload, message: result.error);
         return;
       }
 
@@ -345,25 +470,10 @@ class _BagScreenState extends State<BagScreen> {
         return;
       }
 
-      setState(() {
-        _result = BagLoadResult(
-          status: currentResult.status,
-          payload: previousPayload,
-        );
-      });
-      widget.bagCountController.setCountForContext(
-        tenantSlug: widget.tenantSlug,
-        branchId: widget.branchId,
-        count: previousPayload.items.fold<int>(
-          0,
-          (sum, item) => sum + item.quantity,
-        ),
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('No se pudo actualizar la bolsa de compra: $error'),
-        ),
+      _restoreBag(
+        currentResult,
+        previousPayload,
+        message: 'No se pudo actualizar la bolsa de compra: $error',
       );
     } finally {
       if (mounted && _mutatingItemId == itemId) {
@@ -378,8 +488,19 @@ class _BagScreenState extends State<BagScreen> {
   Widget build(BuildContext context) {
     final payload = _result?.payload;
 
+    final hasItems = payload != null && !payload.isEmpty;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Bolsa de compra')),
+      appBar: AppBar(
+        title: const Text('Bolsa de compra'),
+        actions: [
+          if (hasItems)
+            TextButton(
+              onPressed: _clearing ? null : _clearBag,
+              child: Text(_clearing ? 'Vaciando...' : 'Vaciar'),
+            ),
+        ],
+      ),
       bottomNavigationBar: CustomerFooterNav(
         currentTab: CustomerFooterTab.bag,
         tenantSlug: widget.tenantSlug,

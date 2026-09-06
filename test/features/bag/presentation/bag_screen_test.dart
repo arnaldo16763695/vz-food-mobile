@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:vz_food/core/auth/auth_session.dart';
+import 'package:vz_food/core/widgets/quantity_stepper.dart';
 import 'package:vz_food/features/bag/application/bag_count_controller.dart';
 import 'package:vz_food/features/bag/domain/bag_payload.dart';
 import 'package:vz_food/features/bag/infrastructure/bag_api.dart';
@@ -85,6 +86,10 @@ void main() {
   late _MockBagApi bagApi;
   late _MockStorefrontApi storefrontApi;
   late _MockAuthSession authSession;
+
+  setUpAll(() {
+    registerFallbackValue(<Map<String, dynamic>>[]);
+  });
 
   setUp(() {
     bagApi = _MockBagApi();
@@ -179,4 +184,92 @@ void main() {
       expect(checkoutButton.onPressed, isNotNull);
     },
   );
+
+  testWidgets('empties the bag after confirming "Vaciar"', (tester) async {
+    when(
+      () => storefrontApi.fetchStorefront(
+        tenantSlug: _tenantSlug,
+        branchId: _branchId,
+      ),
+    ).thenAnswer((_) async => _storefrontWithBranch(acceptingOrders: true));
+    when(
+      () => bagApi.clearBag(
+        tenantSlug: _tenantSlug,
+        branchId: _branchId,
+        accessToken: _accessToken,
+      ),
+    ).thenAnswer((_) async => const BagMutationResult(ok: true, quantity: 0));
+
+    await _pumpBagScreen(
+      tester,
+      bagApi: bagApi,
+      storefrontApi: storefrontApi,
+      authSession: authSession,
+    );
+
+    expect(find.text('Burger'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Vaciar'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(TextButton, 'Vaciar'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    verify(
+      () => bagApi.clearBag(
+        tenantSlug: _tenantSlug,
+        branchId: _branchId,
+        accessToken: _accessToken,
+      ),
+    ).called(1);
+    expect(find.text('Burger'), findsNothing);
+    expect(find.textContaining('bolsa de compra esta vacia'), findsOneWidget);
+  });
+
+  testWidgets('surfaces the backend error and rolls back a failed increment', (
+    tester,
+  ) async {
+    when(
+      () => storefrontApi.fetchStorefront(
+        tenantSlug: _tenantSlug,
+        branchId: _branchId,
+      ),
+    ).thenAnswer((_) async => _storefrontWithBranch(acceptingOrders: true));
+    when(
+      () => bagApi.replaceItem(
+        tenantSlug: _tenantSlug,
+        bagItemId: 'item-1',
+        accessToken: _accessToken,
+        branchId: _branchId,
+        productId: 'product-1',
+        quantity: 3,
+        productVariantId: null,
+        modifierSelections: any(named: 'modifierSelections'),
+      ),
+    ).thenAnswer(
+      (_) async => const BagMutationResult(ok: false, error: 'Sin stock'),
+    );
+
+    await _pumpBagScreen(
+      tester,
+      bagApi: bagApi,
+      storefrontApi: storefrontApi,
+      authSession: authSession,
+    );
+
+    await tester.tap(find.widgetWithIcon(IconButton, Icons.add_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sin stock'), findsOneWidget);
+    // The optimistic bump to 3 is reverted to the original quantity.
+    final stepper = tester.widget<QuantityStepper>(
+      find.byType(QuantityStepper),
+    );
+    expect(stepper.quantity, 2);
+  });
 }

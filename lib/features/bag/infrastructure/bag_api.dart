@@ -11,7 +11,18 @@ class BagApi {
     return Options(headers: {'Authorization': 'Bearer $accessToken'});
   }
 
-  Future<void> addItem({
+  BagMutationResult _parseMutation(Response<Object?> response) {
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      return BagMutationResult.fromJson(data);
+    }
+    if (data is Map) {
+      return BagMutationResult.fromJson(Map<String, dynamic>.from(data));
+    }
+    return BagMutationResult.empty;
+  }
+
+  Future<BagMutationResult> addItem({
     required String tenantSlug,
     required String branchId,
     required String productId,
@@ -20,7 +31,7 @@ class BagApi {
     String? productVariantId,
     List<Map<String, dynamic>> modifierSelections = const [],
   }) async {
-    await _dio.post<Object?>(
+    final response = await _dio.post<Object?>(
       '/api/mobile/storefront/$tenantSlug/bag/items',
       data: {
         'branchId': branchId,
@@ -32,9 +43,10 @@ class BagApi {
       },
       options: _authOptions(accessToken),
     );
+    return _parseMutation(response);
   }
 
-  Future<void> replaceItem({
+  Future<BagMutationResult> replaceItem({
     required String tenantSlug,
     required String bagItemId,
     required String accessToken,
@@ -44,7 +56,7 @@ class BagApi {
     String? productVariantId,
     List<Map<String, dynamic>> modifierSelections = const [],
   }) async {
-    await _dio.patch<Object?>(
+    final response = await _dio.patch<Object?>(
       '/api/mobile/storefront/$tenantSlug/bag/items/$bagItemId',
       data: {
         'branchId': branchId,
@@ -56,32 +68,48 @@ class BagApi {
       },
       options: _authOptions(accessToken),
     );
+    return _parseMutation(response);
   }
 
-  Future<void> decrementItem({
+  Future<BagMutationResult> decrementItem({
     required String tenantSlug,
     required String bagItemId,
     required String branchId,
     required String accessToken,
   }) async {
-    await _dio.post<Object?>(
+    final response = await _dio.post<Object?>(
       '/api/mobile/storefront/$tenantSlug/bag/items/$bagItemId',
       queryParameters: {'branchId': branchId},
       options: _authOptions(accessToken),
     );
+    return _parseMutation(response);
   }
 
-  Future<void> removeItem({
+  Future<BagMutationResult> removeItem({
     required String tenantSlug,
     required String bagItemId,
     required String branchId,
     required String accessToken,
   }) async {
-    await _dio.delete<Object?>(
+    final response = await _dio.delete<Object?>(
       '/api/mobile/storefront/$tenantSlug/bag/items/$bagItemId',
       queryParameters: {'branchId': branchId},
       options: _authOptions(accessToken),
     );
+    return _parseMutation(response);
+  }
+
+  Future<BagMutationResult> clearBag({
+    required String tenantSlug,
+    required String branchId,
+    required String accessToken,
+  }) async {
+    final response = await _dio.delete<Object?>(
+      '/api/mobile/storefront/$tenantSlug/bag',
+      queryParameters: {'branchId': branchId},
+      options: _authOptions(accessToken),
+    );
+    return _parseMutation(response);
   }
 
   Future<BagPayload> fetchBag({

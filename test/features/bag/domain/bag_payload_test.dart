@@ -111,6 +111,30 @@ void main() {
       expect(updated.quantity, 4);
     });
   });
+
+  group('BagMutationResult.fromJson', () {
+    test('parses a successful result with quantity', () {
+      final result = BagMutationResult.fromJson({'ok': true, 'quantity': 3});
+
+      expect(result.ok, isTrue);
+      expect(result.quantity, 3);
+      expect(result.error, isNull);
+    });
+
+    test('parses a business rejection with an error message', () {
+      final result = BagMutationResult.fromJson({
+        'ok': false,
+        'error': 'Sin stock',
+      });
+
+      expect(result.ok, isFalse);
+      expect(result.error, 'Sin stock');
+    });
+
+    test('treats a missing ok flag as failure', () {
+      expect(BagMutationResult.fromJson(const {}).ok, isFalse);
+    });
+  });
 }
 
 BagItem _sampleItem({required int quantity}) {
