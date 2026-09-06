@@ -24,6 +24,7 @@ void main() {
                 'modifierOptionId': 'option-1',
                 'modifierOptionName': 'Cheese',
                 'priceDelta': 1.5,
+                'priceDeltaLabel': '+ \$1.50',
               },
             ],
           },
@@ -36,6 +37,7 @@ void main() {
       expect(item.unitPrice, 9.5);
       expect(item.quantity, 2);
       expect(item.modifierSelections.single.modifierOptionName, 'Cheese');
+      expect(item.modifierSelections.single.priceDeltaLabel, '+ \$1.50');
       expect(payload.isEmpty, isFalse);
     });
 

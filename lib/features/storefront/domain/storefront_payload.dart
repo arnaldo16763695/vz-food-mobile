@@ -168,6 +168,7 @@ class StorefrontProduct {
     required this.modifierGroups,
     required this.category,
     required this.imageUrl,
+    required this.comboComponents,
   });
 
   final String id;
@@ -179,6 +180,11 @@ class StorefrontProduct {
   final List<StorefrontModifierGroup> modifierGroups;
   final String category;
   final String? imageUrl;
+
+  /// Non-empty only for combo products: what this product bundles.
+  final List<StorefrontComboComponent> comboComponents;
+
+  bool get isCombo => comboComponents.isNotEmpty;
 
   bool get hasRequiredModifiers =>
       modifierGroups.any((group) => group.minSelect > 0);
@@ -212,7 +218,38 @@ class StorefrontProduct {
       ),
       category: json['category'] as String? ?? '',
       imageUrl: json['imageUrl'] as String?,
+      comboComponents: Storefront._readList(
+        json['comboComponents'],
+        (item) => StorefrontComboComponent.fromJson(item),
+      ),
     );
+  }
+}
+
+class StorefrontComboComponent {
+  const StorefrontComboComponent({
+    required this.componentProductName,
+    required this.componentVariantName,
+    required this.quantity,
+  });
+
+  final String componentProductName;
+  final String? componentVariantName;
+  final int quantity;
+
+  factory StorefrontComboComponent.fromJson(Map<String, dynamic> json) {
+    return StorefrontComboComponent(
+      componentProductName: json['componentProductName'] as String? ?? '',
+      componentVariantName: json['componentVariantName'] as String?,
+      quantity: (json['quantity'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  /// e.g. "2x Papas (Grande)" or "1x Refresco".
+  String get label {
+    final variant = componentVariantName?.trim();
+    final suffix = (variant != null && variant.isNotEmpty) ? ' ($variant)' : '';
+    return '${quantity}x $componentProductName$suffix';
   }
 }
 

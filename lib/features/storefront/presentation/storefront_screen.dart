@@ -1527,6 +1527,48 @@ class _ProductMetaChip extends StatelessWidget {
   }
 }
 
+class _ComboContents extends StatelessWidget {
+  const _ComboContents({required this.components});
+
+  final List<StorefrontComboComponent> components;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Incluye',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          ...components.map(
+            (component) => Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                '• ${component.label}',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ConfiguredProductResult {
   const _ConfiguredProductResult({
     required this.variantId,
@@ -1723,6 +1765,10 @@ class _ProductConfiguratorSheetState extends State<_ProductConfiguratorSheet> {
               Text(product.name, style: theme.textTheme.headlineMedium),
               const SizedBox(height: 6),
               Text(product.description, style: theme.textTheme.bodyMedium),
+              if (product.isCombo) ...[
+                const SizedBox(height: 12),
+                _ComboContents(components: product.comboComponents),
+              ],
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.all(14),

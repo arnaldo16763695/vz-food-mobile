@@ -105,4 +105,45 @@ void main() {
       expect(order.paymentReceiptSubmissions.single.id, 'submission-1');
     });
   });
+
+  group('OrderDetailItem.fromJson', () {
+    test('parses per-line modifiers and combo components', () {
+      final item = OrderDetailItem.fromJson({
+        'id': 'item-1',
+        'productName': 'Combo Familiar',
+        'quantity': 1,
+        'unitPrice': 20.0,
+        'lineTotal': 20.0,
+        'modifiers': [
+          {'modifierGroupName': 'Extras', 'modifierOptionName': 'Queso'},
+        ],
+        'comboComponents': [
+          {
+            'componentProductName': 'Papas',
+            'componentVariantName': 'Grande',
+            'quantity': 2,
+          },
+          {'componentProductName': 'Refresco', 'quantity': 1},
+        ],
+      });
+
+      expect(item.modifiers.single.label, 'Extras: Queso');
+      expect(item.comboComponents, hasLength(2));
+      expect(item.comboComponents.first.label, '2x Papas (Grande)');
+      expect(item.comboComponents.last.label, '1x Refresco');
+    });
+
+    test('defaults modifiers and combo components to empty lists', () {
+      final item = OrderDetailItem.fromJson({
+        'id': 'item-1',
+        'productName': 'Hamburguesa',
+        'quantity': 1,
+        'unitPrice': 8.0,
+        'lineTotal': 8.0,
+      });
+
+      expect(item.modifiers, isEmpty);
+      expect(item.comboComponents, isEmpty);
+    });
+  });
 }

@@ -116,4 +116,35 @@ void main() {
       },
     );
   });
+
+  group('StorefrontProduct combo components', () {
+    test('parses comboComponents and exposes isCombo', () {
+      final product = StorefrontProduct.fromJson({
+        'id': 'combo-1',
+        'name': 'Combo Familiar',
+        'comboComponents': [
+          {
+            'componentProductName': 'Papas',
+            'componentVariantName': 'Grande',
+            'quantity': 2,
+          },
+          {'componentProductName': 'Refresco', 'quantity': 1},
+        ],
+      });
+
+      expect(product.isCombo, isTrue);
+      expect(product.comboComponents.first.label, '2x Papas (Grande)');
+      expect(product.comboComponents.last.label, '1x Refresco');
+    });
+
+    test('defaults comboComponents to empty for a regular product', () {
+      final product = StorefrontProduct.fromJson({
+        'id': 'p-1',
+        'name': 'Hamburguesa',
+      });
+
+      expect(product.isCombo, isFalse);
+      expect(product.comboComponents, isEmpty);
+    });
+  });
 }

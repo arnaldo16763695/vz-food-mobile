@@ -65,11 +65,14 @@ The backend currently exposes these customer-facing endpoints:
 
 ### Public
 
-- `GET /api/mobile/home`
+- `GET /api/mobile/home` (optional `lat`/`lng`; returns `nearbyBranches`)
 - `GET /api/mobile/brands`
-- `GET /api/mobile/branches/nearby?lat=...&lng=...`
+- `GET /api/mobile/branches/nearby?lat=...&lng=...&limit=...` (`limit` 1–50, default 20)
+- `GET /api/mobile/branches/[branchId]` (branch detail: address, active flag, tenant)
 - `GET /api/mobile/storefront/[tenantSlug]?branchId=...`
 - `GET /api/mobile/storefront/[tenantSlug]/menu?branchId=...`
+- `GET /api/mobile/storefront/[tenantSlug]/payment-settings`
+- `GET /api/mobile/storefront/[tenantSlug]/search?branchId=...&q=...`
 - `GET /api/mobile/openapi`
 
 ### Authenticated
@@ -85,6 +88,17 @@ The backend currently exposes these customer-facing endpoints:
 - `GET /api/mobile/storefront/[tenantSlug]/orders`
 - `GET /api/mobile/storefront/[tenantSlug]/orders/[orderId]`
 - `POST /api/mobile/storefront/[tenantSlug]/orders/[orderId]/payment-proof`
+
+### Payload notes
+
+- Combo products: `StorefrontProduct.comboComponents[]` and
+  `CustomerOrderDetail.items[].comboComponents[]` list `{componentProductName,
+  componentVariantName?, quantity}`. Empty for non-combo products.
+- `CustomerOrderDetail.items[].modifiers[]` carries the per-line modifier snapshot
+  `{modifierGroupName, modifierOptionName}`.
+- Bag mutations (`POST/PATCH/DELETE .../bag/items...`) return
+  `{ok, error?, item?, quantity?}` — a business rejection is `ok:false` with a
+  human `error`; surface it, don't assume success from a 2xx.
 
 ## Working Style
 

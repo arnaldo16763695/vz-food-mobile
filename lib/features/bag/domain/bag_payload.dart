@@ -108,6 +108,7 @@ class BagModifierSelection {
     required this.modifierOptionId,
     required this.modifierOptionName,
     required this.priceDelta,
+    required this.priceDeltaLabel,
   });
 
   final String modifierGroupId;
@@ -116,6 +117,10 @@ class BagModifierSelection {
   final String modifierOptionName;
   final double priceDelta;
 
+  /// Backend-formatted delta (e.g. "+ $1.50"). Empty when the backend omits it;
+  /// callers should fall back to formatting [priceDelta] themselves.
+  final String priceDeltaLabel;
+
   factory BagModifierSelection.fromJson(Map<String, dynamic> json) {
     return BagModifierSelection(
       modifierGroupId: json['modifierGroupId'] as String? ?? '',
@@ -123,6 +128,7 @@ class BagModifierSelection {
       modifierOptionId: json['modifierOptionId'] as String? ?? '',
       modifierOptionName: json['modifierOptionName'] as String? ?? '',
       priceDelta: (json['priceDelta'] as num?)?.toDouble() ?? 0,
+      priceDeltaLabel: json['priceDeltaLabel'] as String? ?? '',
     );
   }
 

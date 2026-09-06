@@ -369,6 +369,28 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                   '${item.quantity}x · ${AppFormatters.currency(item.lineTotal)}',
                                   style: theme.textTheme.bodySmall,
                                 ),
+                                for (final component in item.comboComponents)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: Text(
+                                      '• ${component.label}',
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: AppColors.textMuted,
+                                          ),
+                                    ),
+                                  ),
+                                for (final modifier in item.modifiers)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: Text(
+                                      '+ ${modifier.label}',
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: AppColors.textMuted,
+                                          ),
+                                    ),
+                                  ),
                               ],
                             ),
                           ),

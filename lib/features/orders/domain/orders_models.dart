@@ -192,6 +192,8 @@ class OrderDetailItem {
     required this.quantity,
     required this.unitPrice,
     required this.lineTotal,
+    required this.modifiers,
+    required this.comboComponents,
   });
 
   final String id;
@@ -201,6 +203,12 @@ class OrderDetailItem {
   final double unitPrice;
   final double lineTotal;
 
+  /// Modifier selections captured at order time (e.g. "Extras: Queso").
+  final List<OrderItemModifier> modifiers;
+
+  /// Combo contents snapshot at order time; empty for regular products.
+  final List<OrderComboComponent> comboComponents;
+
   factory OrderDetailItem.fromJson(Map<String, dynamic> json) {
     return OrderDetailItem(
       id: json['id'] as String? ?? '',
@@ -209,6 +217,77 @@ class OrderDetailItem {
       quantity: (json['quantity'] as num?)?.toInt() ?? 0,
       unitPrice: (json['unitPrice'] as num?)?.toDouble() ?? 0,
       lineTotal: (json['lineTotal'] as num?)?.toDouble() ?? 0,
+      modifiers: _readList(
+        json['modifiers'],
+        (item) => OrderItemModifier.fromJson(item),
+      ),
+      comboComponents: _readList(
+        json['comboComponents'],
+        (item) => OrderComboComponent.fromJson(item),
+      ),
     );
+  }
+
+  static List<T> _readList<T>(
+    Object? value,
+    T Function(Map<String, dynamic> item) fromJson,
+  ) {
+    if (value is! List) {
+      return const [];
+    }
+
+    return value
+        .whereType<Map>()
+        .map((item) => fromJson(Map<String, dynamic>.from(item)))
+        .toList(growable: false);
+  }
+}
+
+class OrderItemModifier {
+  const OrderItemModifier({
+    required this.modifierGroupName,
+    required this.modifierOptionName,
+  });
+
+  final String modifierGroupName;
+  final String modifierOptionName;
+
+  factory OrderItemModifier.fromJson(Map<String, dynamic> json) {
+    return OrderItemModifier(
+      modifierGroupName: json['modifierGroupName'] as String? ?? '',
+      modifierOptionName: json['modifierOptionName'] as String? ?? '',
+    );
+  }
+
+  /// e.g. "Extras: Queso".
+  String get label => modifierGroupName.trim().isEmpty
+      ? modifierOptionName
+      : '$modifierGroupName: $modifierOptionName';
+}
+
+class OrderComboComponent {
+  const OrderComboComponent({
+    required this.componentProductName,
+    required this.componentVariantName,
+    required this.quantity,
+  });
+
+  final String componentProductName;
+  final String? componentVariantName;
+  final int quantity;
+
+  factory OrderComboComponent.fromJson(Map<String, dynamic> json) {
+    return OrderComboComponent(
+      componentProductName: json['componentProductName'] as String? ?? '',
+      componentVariantName: json['componentVariantName'] as String?,
+      quantity: (json['quantity'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  /// e.g. "2x Papas (Grande)".
+  String get label {
+    final variant = componentVariantName?.trim();
+    final suffix = (variant != null && variant.isNotEmpty) ? ' ($variant)' : '';
+    return '${quantity}x $componentProductName$suffix';
   }
 }
