@@ -15,6 +15,7 @@ import '../../../core/theme/app_colors.dart';
 import '../application/storefront_controller.dart';
 import '../domain/storefront_payload.dart';
 import '../infrastructure/storefront_api.dart';
+import 'fly_to_bag_overlay.dart';
 
 class StorefrontScreen extends StatefulWidget {
   const StorefrontScreen({
@@ -45,6 +46,13 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
   bool _loading = true;
   DateTime? _loadStartedAt;
   String? _addingProductId;
+
+  // Bag "fly" flourish: the tapped card's image rect, captured before the sheet
+  // opens (the modal blocks list scrolling, so it stays valid until the add
+  // resolves).
+  final GlobalKey _bagIconKey = GlobalKey();
+  Rect? _pendingFlySource;
+  String? _pendingFlyImageUrl;
 
   @override
   void initState() {
@@ -127,7 +135,8 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
     );
   }
 
-  Future<void> _addProduct(StorefrontProduct product) async {
+  Future<void> _addProduct(StorefrontProduct product, Rect? imageRect) async {
+    _rememberFlySource(product, imageRect);
     final activeBranchId = widget.branchId;
     final activeBranch = _payload?.storefront.activeBranch;
     if (activeBranchId == null || activeBranchId.isEmpty) {
@@ -150,12 +159,21 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
   /// Opens the product sheet as a spec view (image tap / card tap). Always
   /// available so the customer can inspect ingredients and combo contents; the
   /// add action inside is disabled when the branch cannot take orders.
-  Future<void> _openProductDetails(StorefrontProduct product) async {
+  Future<void> _openProductDetails(
+    StorefrontProduct product,
+    Rect? imageRect,
+  ) async {
+    _rememberFlySource(product, imageRect);
     final activeBranchId = widget.branchId ?? '';
     final activeBranch = _payload?.storefront.activeBranch;
     final canAddToBag =
         activeBranchId.isNotEmpty && (activeBranch?.acceptingOrders ?? true);
     await _openConfigurator(product, canAddToBag: canAddToBag);
+  }
+
+  void _rememberFlySource(StorefrontProduct product, Rect? imageRect) {
+    _pendingFlySource = imageRect;
+    _pendingFlyImageUrl = product.imageUrl;
   }
 
   Future<void> _openConfigurator(
@@ -233,6 +251,8 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
         return;
       }
 
+      _playFlyToBag();
+
       final messenger = ScaffoldMessenger.of(context);
       messenger.hideCurrentSnackBar();
       messenger.showSnackBar(
@@ -254,12 +274,27 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
     } catch (error) {
       _showSnackBar('No se pudo agregar el producto: $error');
     } finally {
+      _pendingFlySource = null;
+      _pendingFlyImageUrl = null;
       if (mounted) {
         setState(() {
           _addingProductId = null;
         });
       }
     }
+  }
+
+  void _playFlyToBag() {
+    final source = _pendingFlySource;
+    if (source == null) {
+      return;
+    }
+    flyToBag(
+      context: context,
+      source: source,
+      targetKey: _bagIconKey,
+      imageUrl: _pendingFlyImageUrl,
+    );
   }
 
   void _showSnackBar(String message) {
@@ -317,6 +352,7 @@ class _StorefrontScreenState extends State<StorefrontScreen> {
         authSession: widget.authSession,
         bagApi: widget.bagApi,
         bagCountController: widget.bagCountController,
+        bagIconKey: _bagIconKey,
       ),
       body: SafeArea(child: _buildBody()),
     );
@@ -378,8 +414,8 @@ class _StorefrontView extends StatefulWidget {
   });
 
   final String? addingProductId;
-  final Future<void> Function(StorefrontProduct product) onAddProduct;
-  final Future<void> Function(StorefrontProduct product) onOpenProduct;
+  final void Function(StorefrontProduct product, Rect? imageRect) onAddProduct;
+  final void Function(StorefrontProduct product, Rect? imageRect) onOpenProduct;
   final Future<List<StorefrontProduct>> Function({
     required String query,
     String? branchId,
@@ -1060,8 +1096,8 @@ class _TwoColumnProductGrid extends StatelessWidget {
   final List<StorefrontProduct> products;
   final String? addingProductId;
   final bool canAddToBag;
-  final Future<void> Function(StorefrontProduct product) onAddProduct;
-  final Future<void> Function(StorefrontProduct product) onOpenProduct;
+  final void Function(StorefrontProduct product, Rect? imageRect) onAddProduct;
+  final void Function(StorefrontProduct product, Rect? imageRect) onOpenProduct;
 
   @override
   Widget build(BuildContext context) {
@@ -1084,8 +1120,8 @@ class _TwoColumnProductGrid extends StatelessWidget {
                   product: leftProduct,
                   isAdding: addingProductId == leftProduct.id,
                   canAddToBag: canAddToBag,
-                  onAdd: () => onAddProduct(leftProduct),
-                  onOpenDetails: () => onOpenProduct(leftProduct),
+                  onAdd: (rect) => onAddProduct(leftProduct, rect),
+                  onOpenDetails: (rect) => onOpenProduct(leftProduct, rect),
                 ),
               ),
               const SizedBox(width: spacing),
@@ -1096,8 +1132,9 @@ class _TwoColumnProductGrid extends StatelessWidget {
                         product: rightProduct,
                         isAdding: addingProductId == rightProduct.id,
                         canAddToBag: canAddToBag,
-                        onAdd: () => onAddProduct(rightProduct),
-                        onOpenDetails: () => onOpenProduct(rightProduct),
+                        onAdd: (rect) => onAddProduct(rightProduct, rect),
+                        onOpenDetails: (rect) =>
+                            onOpenProduct(rightProduct, rect),
                       ),
               ),
             ],
@@ -1117,7 +1154,7 @@ class _TwoColumnProductGrid extends StatelessWidget {
   }
 }
 
-class _ProductTile extends StatelessWidget {
+class _ProductTile extends StatefulWidget {
   const _ProductTile({
     required this.product,
     required this.isAdding,
@@ -1129,15 +1166,36 @@ class _ProductTile extends StatelessWidget {
   final StorefrontProduct product;
   final bool isAdding;
   final bool canAddToBag;
-  final VoidCallback onAdd;
+
+  /// Both callbacks receive the image's current global rect so the caller can
+  /// animate a copy of it toward the bag.
+  final void Function(Rect? imageRect) onAdd;
 
   /// Tapping anywhere on the card except the add button opens the product
   /// detail sheet (ingredients, combo contents).
-  final VoidCallback onOpenDetails;
+  final void Function(Rect? imageRect) onOpenDetails;
+
+  @override
+  State<_ProductTile> createState() => _ProductTileState();
+}
+
+class _ProductTileState extends State<_ProductTile> {
+  final GlobalKey _imageKey = GlobalKey();
+
+  Rect? _imageRect() {
+    final box = _imageKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) {
+      return null;
+    }
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final product = widget.product;
+    final isAdding = widget.isAdding;
+    final canAddToBag = widget.canAddToBag;
     final normalizedImageUrl = product.imageUrl?.trim();
     final hasImage =
         normalizedImageUrl != null && normalizedImageUrl.isNotEmpty;
@@ -1166,11 +1224,12 @@ class _ProductTile extends StatelessWidget {
           ),
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
-            onTap: onOpenDetails,
+            onTap: () => widget.onOpenDetails(_imageRect()),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 ClipRRect(
+                  key: _imageKey,
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(20),
                   ),
@@ -1278,7 +1337,9 @@ class _ProductTile extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.tonal(
-                          onPressed: !canAddToBag || isAdding ? null : onAdd,
+                          onPressed: !canAddToBag || isAdding
+                              ? null
+                              : () => widget.onAdd(_imageRect()),
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.brandPrimary.withValues(
                               alpha: 0.14,

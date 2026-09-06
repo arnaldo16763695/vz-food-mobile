@@ -17,6 +17,7 @@ class CustomerFooterNav extends StatefulWidget {
     this.authSession,
     this.bagApi,
     this.bagCountController,
+    this.bagIconKey,
   });
 
   final CustomerFooterTab currentTab;
@@ -25,6 +26,10 @@ class CustomerFooterNav extends StatefulWidget {
   final AuthSession? authSession;
   final BagApi? bagApi;
   final BagCountController? bagCountController;
+
+  /// Marks the bag glyph so callers (e.g. the storefront "add to bag" flourish)
+  /// can animate toward it.
+  final GlobalKey? bagIconKey;
 
   @override
   State<CustomerFooterNav> createState() => _CustomerFooterNavState();
@@ -150,6 +155,7 @@ class _CustomerFooterNavState extends State<CustomerFooterNav> {
             _FooterItem(
               icon: Icons.shopping_bag_rounded,
               label: 'Bolsa',
+              iconKey: widget.bagIconKey,
               isActive: widget.currentTab == CustomerFooterTab.bag,
               isEnabled:
                   (widget.tenantSlug ?? '').isNotEmpty &&
@@ -172,6 +178,7 @@ class _FooterItem extends StatelessWidget {
     required this.onTap,
     this.isEnabled = true,
     this.badgeCount,
+    this.iconKey,
   });
 
   final IconData icon;
@@ -180,6 +187,7 @@ class _FooterItem extends StatelessWidget {
   final bool isEnabled;
   final int? badgeCount;
   final VoidCallback onTap;
+  final Key? iconKey;
 
   @override
   Widget build(BuildContext context) {
@@ -212,6 +220,7 @@ class _FooterItem extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
+              key: iconKey,
               width: 28,
               height: 28,
               child: Stack(

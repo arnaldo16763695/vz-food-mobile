@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:vz_food/core/auth/auth_session.dart';
 import 'package:vz_food/features/bag/application/bag_count_controller.dart';
+import 'package:vz_food/features/bag/domain/bag_payload.dart';
 import 'package:vz_food/features/bag/infrastructure/bag_api.dart';
 import 'package:vz_food/features/storefront/domain/storefront_payload.dart';
 import 'package:vz_food/features/storefront/infrastructure/storefront_api.dart';
@@ -86,6 +87,10 @@ void main() {
   late _MockBagApi bagApi;
   late _MockAuthSession authSession;
 
+  setUpAll(() {
+    registerFallbackValue(<Map<String, dynamic>>[]);
+  });
+
   setUp(() {
     storefrontApi = _MockStorefrontApi();
     bagApi = _MockBagApi();
@@ -159,4 +164,59 @@ void main() {
       );
     },
   );
+
+  testWidgets('adding to the bag plays the fly-to-bag animation', (
+    tester,
+  ) async {
+    when(
+      () => storefrontApi.fetchStorefront(
+        tenantSlug: _tenantSlug,
+        branchId: _branchId,
+      ),
+    ).thenAnswer((_) async => _storefront(acceptingOrders: true));
+    when(() => authSession.getAccessToken()).thenAnswer((_) async => 'tok');
+    when(
+      () => bagApi.addItem(
+        tenantSlug: _tenantSlug,
+        branchId: _branchId,
+        productId: 'combo-1',
+        quantity: 1,
+        accessToken: 'tok',
+        productVariantId: null,
+        modifierSelections: any(named: 'modifierSelections'),
+      ),
+    ).thenAnswer((_) async => const BagMutationResult(ok: true));
+
+    await _pumpStorefront(
+      tester,
+      storefrontApi: storefrontApi,
+      bagApi: bagApi,
+      authSession: authSession,
+    );
+
+    // Only the footer bag glyph so far.
+    expect(find.byIcon(Icons.shopping_bag_rounded), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Agregar'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Agregar a la bolsa'));
+    await tester.pump(); // run _submit / pop
+    await tester.pump(
+      const Duration(milliseconds: 400),
+    ); // sheet closes, add resolves, overlay inserts
+    await tester.pump(const Duration(milliseconds: 200)); // mid-flight
+
+    // Footer glyph + the flying copy.
+    expect(find.byIcon(Icons.shopping_bag_rounded), findsNWidgets(2));
+
+    await tester.pump(
+      const Duration(milliseconds: 700),
+    ); // animation ends, overlay self-removes
+    expect(find.byIcon(Icons.shopping_bag_rounded), findsOneWidget);
+
+    await tester.pump(
+      const Duration(seconds: 6),
+    ); // flush the snackbar auto-hide timer
+  });
 }
