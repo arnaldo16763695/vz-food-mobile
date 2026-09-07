@@ -21,7 +21,9 @@ String localizedStatusLabel(String value) {
     'on_the_way' || 'out_for_delivery' || 'in_transit' => 'En camino',
     'picked_up' => 'Retirado',
     'delivered' => 'Entregado',
-    'completed' => 'Completado',
+    'completed' || 'fulfilled' || 'fulfilment' || 'fulfillment' => 'Completado',
+    'partially_fulfilled' => 'Completado parcialmente',
+    'unfulfilled' => 'Sin completar',
     'cancelled' || 'canceled' => 'Cancelado',
     'rejected' => 'Rechazado',
     'failed' => 'Fallido',
@@ -53,14 +55,22 @@ Color statusColor(String value) {
 
   return switch (normalized) {
     'ready' || 'ready_for_pickup' => Colors.green.shade700,
-    'completed' || 'paid' || 'accepted' || 'confirmed' => Colors.teal.shade700,
+    'completed' ||
+    'fulfilled' ||
+    'fulfilment' ||
+    'fulfillment' ||
+    'paid' ||
+    'accepted' ||
+    'confirmed' => Colors.teal.shade700,
     'processing' ||
     'preparing' ||
     'in_preparation' ||
-    'in_progress' => Colors.blue.shade700,
+    'in_progress' ||
+    'partially_fulfilled' => Colors.blue.shade700,
     'new' ||
     'pending' ||
     'pending_confirmation' ||
+    'unfulfilled' ||
     'scheduled' => Colors.orange.shade700,
     'unpaid' ||
     'awaiting_payment' ||
